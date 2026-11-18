@@ -97,6 +97,14 @@ input.lo,textarea.lo{font-size:22px}
 .w .grow{flex:1;min-width:0}
 .w .note{font-size:13px;color:#AAA;margin-top:2px}
 .lv{display:flex;gap:2px}.lv i{width:6px;height:14px;border-radius:3px;background:var(--line)}.lv i.f{background:var(--g)}
+.chk-box{font-family:"Noto Sans KR","Noto Sans Lao Looped","Noto Sans Lao",sans-serif;margin-top:8px;padding:10px 12px;border-radius:12px;background:#FFF8E1;border:2px solid #FFE7A0;font-size:14px;line-height:1.6}
+.chk-box.bad{background:var(--rl);border-color:#FFB2B2;color:#B32020}
+.ai-row{font-family:"Noto Sans KR","Noto Sans Lao Looped","Noto Sans Lao",sans-serif;border:2px solid var(--line);border-radius:14px;padding:12px;margin:8px 0;text-align:left}
+.ai-row .lo{font-size:22px}
+.ai-row .arrow{color:var(--muted);margin:0 6px}
+.ai-row.fixme{border-color:#FFB2B2;background:#FFF5F5}
+.spin{display:inline-block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 .tap{cursor:pointer;border-radius:10px}
 .tap:active{background:var(--soft)}
 .pen{font-size:13px;opacity:.35}
@@ -199,6 +207,54 @@ function speak(text) {
   if (!loVoice) { toast('이 기기엔 라오스어 음성이 없어요 (설정 탭 참고)'); return; }
   const u = new SpeechSynthesisUtterance(text); u.voice = loVoice; u.lang = loVoice.lang; u.rate = 0.85;
   speechSynthesis.cancel(); speechSynthesis.speak(u);
+}
+
+/* ========== 철자 검사 1: 글자 순서 규칙 (인터넷 없이 즉시) ========== */
+const RX = {
+  mark: '[\\u0EB1\\u0EB4-\\u0EB9\\u0EBB\\u0EBC\\u0EC8-\\u0ECD]',     // 위·아래에 붙는 기호
+  vowelMark: '[\\u0EB1\\u0EB4-\\u0EB9\\u0EBB\\u0ECD]',              // 위·아래 모음
+  tone: '[\\u0EC8-\\u0ECB]',                                          // 성조 ່ ້ ໊ ໋
+  cons: '[\\u0E81-\\u0EAE\\u0EDC-\\u0EDF]',                           // 자음
+  lead: '[\\u0EC0-\\u0EC4]'                                           // 앞모음 ເ ແ ໂ ໃ ໄ
+};
+function checkLao(s) {
+  const out = [], add = (level, msg, fix) => out.push({ level, msg, fix });
+  if (!s.trim()) return out;
+  if (/[฀-๿]/.test(s)) add('err', '태국 글자가 섞여 있어요. 라오스어 자판으로 바꿔 쓰세요');
+  if (!/[຀-໿]/.test(s)) { add('err', '라오스 글자가 없어요. 자판이 라오스어인지 확인하세요'); return out; }
+  if (/[A-Za-z]/.test(s)) add('warn', '영어 글자가 섞여 있어요');
+  if (new RegExp('(^|[\\s.,!?])' + RX.mark).test(s)) add('err', '기호(모음·성조)로 시작할 수 없어요. 앞에 자음이 빠졌어요');
+  if (/ເເ/.test(s)) add('err', 'ເ 두 개가 아니라 ແ 한 글자로 써야 해요', true);
+  if (/ໍາ/.test(s)) add('err', 'ໍ + າ 가 아니라 ຳ 한 글자로 써야 해요', true);
+  if (new RegExp(RX.tone + RX.vowelMark).test(s)) add('err', '성조 기호를 모음 기호보다 먼저 쳤어요 (보기엔 같아도 다른 글자로 저장돼요)', true);
+  if (new RegExp(RX.tone + RX.tone).test(s)) add('err', '성조 기호가 두 개 붙었어요');
+  if (/([ັິ-ູົຼ່-ໍ])\1/.test(s)) add('err', '같은 기호를 두 번 쳤어요', true);
+  if (new RegExp(RX.vowelMark + RX.vowelMark).test(s)) add('warn', '모음 기호가 두 개 겹쳤어요. 맞는지 확인해 보세요');
+  if (new RegExp(RX.lead + '(?!' + RX.cons + ')').test(s.replace(/ເເ/g, 'ແ'))) add('err', 'ເ ແ ໂ ໃ ໄ 뒤에는 자음이 와야 해요');
+  if (/ຫ[ລນມ]|ຣ/.test(s)) add('info', '옛 표기(ຫລ·ຫນ·ຫມ·ຣ)가 있어요. 요즘은 ຫຼ·ໜ·ໝ·ລ로 많이 써요');
+  return out;
+}
+function fixLao(s) {
+  return s.replace(/ເເ/g, 'ແ').replace(/ໍາ/g, 'ຳ')
+    .replace(new RegExp('(' + RX.tone + ')(' + RX.vowelMark + ')', 'g'), '$2$1')
+    .replace(/([ັິ-ູົຼ່-ໍ])\1+/g, '$1');
+}
+function chkHtml(list, fixFn) {
+  if (!list.length) return '';
+  const ic = { err: '❌', warn: '⚠️', info: 'ℹ️' };
+  return `<div class="chk-box ${list.some(x => x.level === 'err') ? 'bad' : ''}">${list.map(x => `<div>${ic[x.level]} ${x.msg}</div>`).join('')}
+    ${list.some(x => x.fix) && fixFn ? `<button class="btn sm blue" style="margin-top:8px" onclick="${fixFn}">자동으로 고치기</button>` : ''}</div>`;
+}
+function liveCheck(inputId, boxId) {
+  const inp = document.getElementById(inputId), box = document.getElementById(boxId);
+  if (!inp || !box) return;
+  const run = () => { box.innerHTML = chkHtml(checkLao(inp.value), `applyFix('${inputId}','${boxId}')`); };
+  inp.addEventListener('input', run); run();
+}
+function applyFix(inputId, boxId) {
+  const inp = document.getElementById(inputId); inp.value = fixLao(inp.value);
+  document.getElementById(boxId).innerHTML = chkHtml(checkLao(inp.value), `applyFix('${inputId}','${boxId}')`);
+  toast('고쳤어요');
 }
 
 /* ========== 마스코트: 코끼리 '창이' (ຊ້າງ = 코끼리) ========== */
@@ -402,6 +458,7 @@ function renderAdd() {
     ` : `
       <label>라오스어</label>
       <input id="fLo" class="lo" lang="lo" autocomplete="off" placeholder="${addKind === '단어' ? 'ຕະຫຼາດ' : addKind === '표현' ? 'ບໍ່ເປັນຫຍັງ' : 'ຂ້ອຍຢາກໄປຕະຫຼາດ'}">
+      <div id="fLoChk"></div>
       <label>한국어 뜻</label>
       <input id="fKo" autocomplete="off" placeholder="${addKind === '단어' ? '시장' : addKind === '표현' ? '괜찮아요' : '나는 시장에 가고 싶어요'}">
       <label>메모 · 예문 <span class="muted">(선택)</span></label>
@@ -415,6 +472,7 @@ function renderAdd() {
       ${todays.length ? todays.slice().reverse().map(wordRow).join('') : '<div class="muted">아직 없어요</div>'}
     </div>`;
   const f = $('#fKo'); if (f) f.addEventListener('keydown', e => { if (e.key === 'Enter') addOne(); });
+  liveCheck('fLo', 'fLoChk');
 }
 function pushWord(lo, ko, kind, note) {
   lo = lo.trim(); ko = ko.trim();
@@ -426,32 +484,139 @@ function pushWord(lo, ko, kind, note) {
   return 'ok';
 }
 function addOne() {
-  const r = pushWord($('#fLo').value, $('#fKo').value, addKind, $('#fNote').value);
+  const lo = fixLao($('#fLo').value.trim());
+  const errs = checkLao(lo).filter(x => x.level === 'err');
+  if (errs.length && !confirm(`철자에 문제가 있어 보여요:\n\n${errs.map(x => '· ' + x.msg).join('\n')}\n\n그래도 넣을까요?`)) return;
+  const r = pushWord(lo, $('#fKo').value, addKind, $('#fNote').value);
   if (r === 'empty') return toast('라오스어와 뜻을 모두 써 주세요');
   if (r === 'dup') return toast('이미 가르쳐 준 표현이에요');
   save(); beep('ok'); toast('🍌 +1 · 창이가 배웠어요!');
+  const added = S.words[S.words.length - 1];
   tryCompleteDay();
   renderTop(); renderAdd(); $('#fLo') && $('#fLo').focus();
+  aiReview([added], true);
 }
 function addBulk() {
   const lines = $('#bulkT').value.split('\n').map(l => l.trim()).filter(Boolean);
-  let ok = 0, dup = 0, bad = 0;
+  let ok = 0, dup = 0, bad = 0; const flagged = [], added = [];
   for (const l of lines) {
     const m = l.split(/\s*(?:=|\t)\s*/);
     if (m.length < 2) { bad++; continue; }
-    const r = pushWord(m[0], m.slice(1).join(' '), addKind);
-    r === 'ok' ? ok++ : r === 'dup' ? dup++ : bad++;
+    const lo = fixLao(m[0]);
+    const r = pushWord(lo, m.slice(1).join(' '), addKind);
+    if (r === 'ok') { ok++; added.push(S.words[S.words.length - 1]); if (checkLao(lo).some(x => x.level === 'err')) flagged.push(lo); }
+    else r === 'dup' ? dup++ : bad++;
   }
   save(); if (ok) beep('ok');
   toast(`${ok}개 추가${dup ? ` · 중복 ${dup}` : ''}${bad ? ` · 형식 오류 ${bad}` : ''}`);
   tryCompleteDay(); renderTop(); bulk = false; renderAdd();
+  if (flagged.length && !aiKey()) modal(`<h2>⚠️ 철자 확인 필요</h2><p>글자 순서가 이상한 표현이 있어요. 단어장에서 눌러 고쳐 주세요.<br><br><span class="lo" style="font-size:20px">${flagged.map(esc).join('<br>')}</span></p>`, '알겠어요');
+  aiReview(added, true);
+}
+
+/* ========== 철자 검사 2: AI 확인 (제미나이, 사장님 키로) ========== */
+const AI_KEY = 'chang_lao_aikey', AI_MODEL_KEY = 'chang_lao_aimodel';
+const aiKey = () => { try { return localStorage.getItem(AI_KEY) || ''; } catch (e) { return ''; } };
+const aiModel = () => { try { return localStorage.getItem(AI_MODEL_KEY) || 'gemini-3.6-flash'; } catch (e) { return 'gemini-3.6-flash'; } };
+async function aiCheck(items) {
+  const prompt = `You are a meticulous Lao (ພາສາລາວ) orthography checker for a Korean learner.
+For each item, judge the Lao text against standard modern Lao spelling (as used in Laos today) and against the Korean meaning given.
+Rules:
+- Only flag real errors (wrong vowel, wrong consonant, missing/extra tone mark, wrong word). Do NOT "correct" text that is already correct.
+- Accepted alternative spellings (e.g. older ຫລ/ຫນ/ຫມ instead of ຫຼ/ໜ/ໝ, or ຣ) are NOT errors: set ok=true, variant=true and give the modern form in suggestion.
+- If the Lao is correctly spelled but does not mean the Korean, set ok=true, meaning_ok=false and explain in note_ko.
+- suggestion: the corrected Lao text, or "" if nothing to change.
+- note_ko: one short Korean sentence explaining what was wrong (Korean only), or "" if fine.
+Items:
+${items.map((w, i) => `${i}. lo="${w.lo.replace(/"/g, "'")}" ko="${w.ko.replace(/"/g, "'")}"`).join('\n')}`;
+  const body = {
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: {
+      temperature: 0, responseMimeType: 'application/json',
+      responseSchema: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+        i: { type: 'INTEGER' }, ok: { type: 'BOOLEAN' }, variant: { type: 'BOOLEAN' }, meaning_ok: { type: 'BOOLEAN' },
+        suggestion: { type: 'STRING' }, note_ko: { type: 'STRING' } }, required: ['i', 'ok', 'variant', 'meaning_ok', 'suggestion', 'note_ko'] } }
+    }
+  };
+  // 한 모델이 바쁘거나(503) 없어졌으면(404) 다음 모델로
+  const models = [...new Set([aiModel(), 'gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-flash-latest'])];
+  let last = '연결 실패';
+  for (const model of models) {
+    const ctl = new AbortController(); const timer = setTimeout(() => ctl.abort(), 45000);
+    try {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': aiKey() }, body: JSON.stringify(body), signal: ctl.signal });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) { try { localStorage.setItem(AI_MODEL_KEY, model); } catch (e) {} return JSON.parse(j.candidates[0].content.parts[0].text); }
+      if (r.status === 400 || r.status === 401 || r.status === 403) throw new Error('키가 맞지 않아요');
+      if (r.status === 429) throw new Error('오늘 쓸 수 있는 양을 넘었어요');
+      last = r.status === 503 ? '구글 AI가 지금 붐벼요. 잠시 뒤 다시 해 주세요' : `오류 ${r.status}`;
+    } catch (e) {
+      if (e.message === '키가 맞지 않아요' || e.message.startsWith('오늘')) throw e;
+      last = e.name === 'AbortError' ? '응답이 너무 늦어요. 잠시 뒤 다시 해 주세요' : (e.message || last);
+    } finally { clearTimeout(timer); }
+  }
+  throw new Error(last);
+}
+// 단어들을 확인해서 고칠 게 있으면 "바꿀까요?" 창을 띄움. quiet=true면 문제 없을 때 조용히.
+let aiBusy = false;
+async function aiReview(words, quiet) {
+  if (!aiKey() || !words.length) return;
+  if (aiBusy) return; aiBusy = true;
+  const chip = document.createElement('div'); chip.className = 'toast'; chip.innerHTML = '<span class="spin">🐘</span> 창이가 철자 보는 중…'; chip.style.bottom = '140px';
+  document.body.appendChild(chip);
+  const found = [];
+  try {
+    for (let s = 0; s < words.length; s += 25) {
+      const part = words.slice(s, s + 25);
+      const res = await aiCheck(part);
+      res.forEach(o => {
+        const w = part[o.i]; if (!w) return;
+        const live = S.words.find(x => x.id === w.id); if (!live) return;
+        const sug = (o.suggestion || '').trim();
+        live.ai = { ok: o.ok, variant: o.variant, meaning: o.meaning_ok, sug: sug !== live.lo ? sug : '', note: o.note_ko || '', at: today() };
+        if (live.ai.sug || !o.meaning_ok) found.push(live);
+      });
+    }
+    save();
+  } catch (e) { chip.remove(); aiBusy = false; toast('🤖 AI 확인 실패: ' + e.message); return; }
+  chip.remove(); aiBusy = false;
+  if (!found.length) { if (!quiet) toast(`🤖 ${words.length}개 모두 괜찮아요!`); if (tab === 'words') render(); return; }
+  showAiFixes(found);
+}
+function showAiFixes(list) {
+  const m = document.createElement('div'); m.className = 'modal';
+  const row = w => {
+    const a = w.ai, kindTxt = !a.ok ? '철자가 틀린 것 같아요' : a.variant ? '옛 표기예요 (틀린 건 아니에요)' : !a.meaning ? '뜻이 안 맞는 것 같아요' : '';
+    return `<div class="ai-row ${!a.ok ? 'fixme' : ''}" data-id="${w.id}">
+      <div class="muted" style="font-weight:700">${kindTxt} · ${esc(w.ko)}</div>
+      <div><span class="lo">${esc(w.lo)}</span>${a.sug ? `<span class="arrow">→</span><span class="lo" style="color:var(--gd)">${esc(a.sug)}</span>` : ''}</div>
+      ${a.note ? `<div style="font-size:14px;margin-top:4px">${esc(a.note)}</div>` : ''}
+      <div class="row" style="margin-top:8px">${a.sug ? `<button class="btn sm" data-act="fix">바꾸기</button>` : ''}<button class="btn sm ghost" data-act="keep">${a.sug ? '내 철자 그대로' : '확인했어요'}</button>${!a.meaning ? `<button class="btn sm ghost" data-act="edit">직접 고치기</button>` : ''}</div>
+    </div>`;
+  };
+  m.innerHTML = `<div class="box" style="max-height:85vh;overflow:auto">${mascot('worried', 70)}<h2>창이가 철자를 봤어요</h2>
+    <div class="muted">AI도 틀릴 수 있어요. 확실할 때만 바꾸세요.</div>${list.map(row).join('')}
+    <button class="btn" id="aiDone" style="margin-top:8px">닫기</button></div>`;
+  document.body.appendChild(m);
+  m.querySelector('#aiDone').onclick = () => { m.remove(); render(); };
+  m.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    const box = b.closest('.ai-row'), w = S.words.find(x => x.id === box.dataset.id); if (!w) return;
+    if (b.dataset.act === 'fix') {
+      if (S.words.some(x => x.id !== w.id && x.lo === w.ai.sug)) return toast('바꿀 철자가 단어장에 이미 있어요');
+      w.lo = w.ai.sug; toast('고쳤어요');
+    }
+    if (b.dataset.act === 'edit') { m.remove(); w.ai.sug = ''; save(); render(); return editWord(w.id); }
+    w.ai.sug = ''; w.ai.ok = true; w.ai.meaning = true; save(); box.remove();
+    if (!m.querySelector('.ai-row')) { m.remove(); render(); }
+  });
 }
 
 /* ========== 단어장 ========== */
 let q = '', kindF = '전체';
 function wordRow(w) {
   return `<div class="w">
-    <div class="grow tap" onclick="editWord('${w.id}')" title="눌러서 수정"><div class="lo">${esc(w.lo)} <span class="pen">✏️</span></div><div class="ko">${esc(w.ko)} <span class="pill">${w.kind}</span></div>${w.note ? `<div class="note">${esc(w.note)}</div>` : ''}</div>
+    <div class="grow tap" onclick="editWord('${w.id}')" title="눌러서 수정"><div class="lo">${esc(w.lo)} <span class="pen">✏️</span>${w.ai && (w.ai.sug || !w.ai.meaning) ? ' <span class="pill" style="background:var(--rl);color:var(--rd)">철자 확인</span>' : ''}</div><div class="ko">${esc(w.ko)} <span class="pill">${w.kind}</span></div>${w.note ? `<div class="note">${esc(w.note)}</div>` : ''}</div>
     <div class="lv" title="숙련도">${[1, 2, 3, 4, 5, 6].map(i => `<i class="${w.box >= i ? 'f' : ''}"></i>`).join('')}</div>
     ${loVoice ? `<button class="iconbtn" onclick="speak('${esc(w.lo).replace(/'/g, "\\'")}')">🔊</button>` : ''}
     <button class="iconbtn" onclick="delWord('${w.id}')">🗑️</button></div>`;
@@ -463,7 +628,17 @@ function renderWords() {
     <div class="statgrid" style="margin-top:0"><div><b>${S.words.length}</b><span>전체</span></div><div><b>${mastered}</b><span>익힌 것</span></div><div><b>${S.words.filter(w => w.due <= today()).length}</b><span>오늘 복습</span></div></div>
     <input id="sq" placeholder="🔍 라오스어나 뜻으로 찾기" value="${esc(q)}" oninput="q=this.value;renderWordsList()">
     <div class="seg" style="margin:10px 0">${['전체', '단어', '표현', '문장'].map(k => `<button class="${kindF === k ? 'on' : ''}" onclick="kindF='${k}';renderWords()">${k}</button>`).join('')}</div>
+    ${aiBar()}
     <div class="card" id="wl">${list.length ? list.map(wordRow).join('') : '<div class="muted">아직 단어가 없어요. 입력 탭에서 가르쳐 주세요.</div>'}</div>`;
+}
+function aiBar() {
+  if (!S.words.length) return '';
+  if (!aiKey()) return `<div class="card" style="padding:12px 14px"><div class="muted">🤖 AI 철자 확인을 쓰려면 <a href="#" onclick="go('more');return false">더보기</a>에서 제미나이 키를 넣어 주세요.</div></div>`;
+  const unchecked = S.words.filter(w => !w.ai), flagged = S.words.filter(w => w.ai && (w.ai.sug || !w.ai.meaning));
+  return `<div class="row" style="margin-bottom:12px">
+    ${unchecked.length ? `<button class="btn sm purple" onclick="aiReview(S.words.filter(w=>!w.ai))">🤖 안 본 ${unchecked.length}개 철자 확인</button>` : ''}
+    ${flagged.length ? `<button class="btn sm red" onclick="showAiFixes(S.words.filter(w=>w.ai&&(w.ai.sug||!w.ai.meaning)))">⚠️ 확인 필요 ${flagged.length}개</button>` : ''}
+    ${!unchecked.length && !flagged.length ? `<div class="muted" style="padding:4px 0">🤖 모든 단어를 AI가 확인했어요 ✓</div>` : ''}</div>`;
 }
 function renderWordsList() {
   const list = S.words.filter(w => (kindF === '전체' || w.kind === kindF) && (!q || w.lo.includes(q) || w.ko.includes(q))).slice().reverse();
@@ -477,6 +652,8 @@ function editWord(id) {
     <h2 style="text-align:center">✏️ 고치기</h2>
     <div class="seg" id="ekSeg" style="margin-top:8px">${['단어', '표현', '문장'].map(k => `<button data-k="${k}" class="${kind === k ? 'on' : ''}">${k}</button>`).join('')}</div>
     <label>라오스어</label><input id="eLo" class="lo" lang="lo" autocomplete="off" value="${esc(w.lo)}">
+    <div id="eLoChk"></div>
+    ${w.ai && w.ai.note ? `<div class="chk-box">🤖 ${esc(w.ai.note)}${w.ai.sug ? `<br>제안: <span class="lo" style="font-size:18px">${esc(w.ai.sug)}</span>` : ''}</div>` : ''}
     <label>한국어 뜻</label><input id="eKo" autocomplete="off" value="${esc(w.ko)}">
     <label>메모 · 예문</label><textarea id="eNote" rows="3" style="font-size:16px">${esc(w.note)}</textarea>
     <div class="muted" style="margin-top:8px">추가한 날 ${w.created} · 맞힘 ${w.right}/${w.seen} · 숙련도 ${w.box}/6</div>
@@ -487,12 +664,18 @@ function editWord(id) {
   });
   m.querySelector('#eC').onclick = () => m.remove();
   m.querySelector('#eS').onclick = () => {
-    const lo = m.querySelector('#eLo').value.trim(), ko = m.querySelector('#eKo').value.trim();
+    const lo = fixLao(m.querySelector('#eLo').value.trim()), ko = m.querySelector('#eKo').value.trim();
     if (!lo || !ko) return toast('라오스어와 뜻은 비울 수 없어요');
     if (S.words.some(x => x.id !== id && x.lo === lo)) return toast('같은 라오스어가 이미 있어요');
+    const errs = checkLao(lo).filter(x => x.level === 'err');
+    if (errs.length && !confirm(`철자에 문제가 있어 보여요:\n\n${errs.map(x => '· ' + x.msg).join('\n')}\n\n그래도 저장할까요?`)) return;
+    const changed = lo !== w.lo || ko !== w.ko;
     w.lo = lo; w.ko = ko; w.kind = kind; w.note = m.querySelector('#eNote').value.trim();
+    if (changed) delete w.ai;
     save(); m.remove(); toast('고쳤어요'); render();
+    if (changed) aiReview([w], true);
   };
+  liveCheck('eLo', 'eLoChk');
   setTimeout(() => m.querySelector('#eLo').focus(), 50);
 }
 function delWord(id) {
@@ -673,6 +856,15 @@ function renderMore() {
       ${S.journal.length ? S.journal.slice().reverse().slice(0, 10).map(j => `<div class="w"><div class="grow"><div class="muted">${j.date}</div><div class="lo" style="font-size:18px">${esc(j.text)}</div>${j.ko ? `<div class="ko">${esc(j.ko)}</div>` : ''}</div></div>`).join('') : '<div class="muted">홈에서 짧은 글쓰기를 해 보세요</div>'}
     </div>
     <div class="card">
+      <h3>🤖 AI 철자 확인 <span class="pill" style="background:#FFF0D6;color:#FF9600">시험 중</span> ${aiKey() ? '<span class="pill" style="background:var(--gl);color:var(--gd)">켜짐</span>' : '<span class="pill">꺼짐</span>'}</h3>
+      <div class="muted" style="line-height:1.6;margin-bottom:10px">단어를 넣을 때마다 제미나이가 철자와 뜻을 확인하고, 틀렸으면 "바꿀까요?" 하고 물어봐요. 키는 이 기기에만 저장되고 백업 파일에도 들어가지 않아요.</div>
+      ${aiKey()
+        ? `<div class="row"><button class="btn sm ghost" onclick="testAi()">연결 시험</button><button class="btn sm red" onclick="if(confirm('키를 지울까요?')){localStorage.removeItem(AI_KEY);renderMore()}">키 지우기</button></div>`
+        : `<input id="aiK" type="password" autocomplete="off" placeholder="제미나이 API 키 붙여넣기" style="font-size:15px">
+           <button class="btn sm blue" style="margin-top:8px" onclick="saveAiKey()">저장</button>
+           <div class="muted" style="margin-top:8px;font-size:13px">키 만드는 곳: aistudio.google.com → Get API key</div>`}
+    </div>
+    <div class="card">
       <h3>🔊 소리</h3>
       <div class="w"><div class="grow">효과음</div><button class="btn sm ${S.sound ? '' : 'ghost'}" onclick="S.sound=!S.sound;save();renderMore()">${S.sound ? '켜짐' : '꺼짐'}</button></div>
       <div class="muted" style="line-height:1.6">라오스어 읽어 주기: ${loVoice ? `✅ ${esc(loVoice.name)}` : '❌ 이 기기에 라오스어 음성이 없어요.<br>안드로이드: 설정 → 텍스트 음성 변환 → Google 음성 데이터에서 라오스어 설치 (기기에 따라 없을 수 있어요). 없으면 3단계에서 AI 음성으로 바꿀 예정이에요.'}</div>
@@ -698,6 +890,17 @@ function renderMore() {
       <div style="height:10px"></div>
       <button class="btn red" onclick="resetAll()">전부 초기화</button>
     </div>`;
+}
+function saveAiKey() {
+  const k = $('#aiK').value.trim();
+  if (k.length < 20) return toast('키가 너무 짧아요. 다시 복사해 주세요');
+  try { localStorage.setItem(AI_KEY, k); } catch (e) { return toast('저장 실패'); }
+  renderMore(); testAi();
+}
+async function testAi() {
+  toast('🤖 연결 시험 중…');
+  try { const r = await aiCheck([{ lo: 'ຂອບໃຈ', ko: '고마워요' }]); toast(r && r.length ? `🤖 연결 성공! (${aiModel()})` : '응답이 이상해요'); }
+  catch (e) { toast('🤖 ' + e.message); }
 }
 function buyShield() {
   if (S.coins < SHIELD_PRICE || S.shields >= SHIELD_MAX) return;
