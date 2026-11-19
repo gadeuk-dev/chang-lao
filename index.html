@@ -127,6 +127,13 @@ input.lo,textarea.lo{font-size:22px}
 .ch{text-align:left;border:2px solid var(--line);border-radius:16px;background:#fff;padding:14px 16px;font-size:18px;box-shadow:0 4px 0 var(--line);display:flex;gap:12px;align-items:center;color:var(--txt)}
 .ch .n{width:28px;height:28px;border:2px solid var(--line);border-radius:8px;display:grid;place-items:center;font-size:13px;color:#AFAFAF;flex:none;font-weight:700}
 .ch.lo{font-size:24px}
+.ord-ans{min-height:70px;border-bottom:2px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;padding:6px 0 12px;margin:0 0 18px;align-content:flex-start}
+.ord-bank{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.tile{font-size:22px;line-height:1.5;border:2px solid var(--line);border-radius:14px;background:#fff;padding:5px 14px;box-shadow:0 3px 0 var(--line);color:var(--txt)}
+.tile.ph{background:var(--line);color:transparent;box-shadow:none}
+.tile.right{border-color:var(--g);background:var(--gl);box-shadow:0 3px 0 var(--g)}
+.tile.wrong{border-color:var(--r);background:var(--rl);box-shadow:0 3px 0 var(--r)}
+.ord-hint{font-size:16px;font-weight:700;color:var(--muted);flex:1}
 .ch.sel{border-color:#84D8FF;background:var(--bl);box-shadow:0 4px 0 #84D8FF;color:var(--bd)}
 .ch.sel .n{border-color:#84D8FF;color:var(--bd)}
 .ch.right{border-color:var(--g);background:var(--gl);box-shadow:0 4px 0 var(--g)}
@@ -462,7 +469,8 @@ function renderAdd() {
       <label>한국어 뜻</label>
       <input id="fKo" autocomplete="off" placeholder="${addKind === '단어' ? '시장' : addKind === '표현' ? '괜찮아요' : '나는 시장에 가고 싶어요'}">
       <label>메모 · 예문 <span class="muted">(선택)</span></label>
-      <input id="fNote" autocomplete="off" placeholder="어디서 들었는지, 예문 등">
+      <input id="fNote" autocomplete="off" placeholder="예) ຂ້ອຍຢາກໄປຕະຫຼາດ = 나는 시장에 가고 싶어요">
+      <div class="muted" style="margin-top:4px;font-size:13px">예문을 넣으면 '순서 맞추기' 문제로도 나와요. 한 줄에 한 문장, = 뒤에 뜻.</div>
       <div style="height:14px"></div>
       <button class="btn" onclick="addOne()">창이에게 가르치기</button>
     `}
@@ -655,7 +663,8 @@ function editWord(id) {
     <div id="eLoChk"></div>
     ${w.ai && w.ai.note ? `<div class="chk-box">🤖 ${esc(w.ai.note)}${w.ai.sug ? `<br>제안: <span class="lo" style="font-size:18px">${esc(w.ai.sug)}</span>` : ''}</div>` : ''}
     <label>한국어 뜻</label><input id="eKo" autocomplete="off" value="${esc(w.ko)}">
-    <label>메모 · 예문</label><textarea id="eNote" rows="3" style="font-size:16px">${esc(w.note)}</textarea>
+    <label>메모 · 예문</label><textarea id="eNote" rows="3" style="font-size:16px" placeholder="ຂ້ອຍຢາກໄປຕະຫຼາດ = 나는 시장에 가고 싶어요">${esc(w.note)}</textarea>
+    <div class="muted" style="margin-top:4px;font-size:13px">라오스어 예문은 '순서 맞추기' 문제로 나와요. 한 줄에 한 문장.</div>
     <div class="muted" style="margin-top:8px">추가한 날 ${w.created} · 맞힘 ${w.right}/${w.seen} · 숙련도 ${w.box}/6</div>
     <div class="row" style="margin-top:14px"><button class="btn ghost" id="eC">취소</button><button class="btn" id="eS">저장</button></div></div>`;
   document.body.appendChild(m);
@@ -698,7 +707,7 @@ function renderQuizHome() {
       <h3>문제 구성</h3>
       <div class="muted" style="line-height:1.8">
         1. 오늘 넣은 표현 먼저<br>2. 복습할 때가 된 표현 (지금 ${due}개)<br>3. 나머지에서 무작위<br>
-        유형: 라오스어 → 뜻 고르기 · 뜻 → 라오스어 고르기${loVoice ? ' · 듣고 고르기' : ''}<br>
+        유형: 라오스어 → 뜻 고르기 · 뜻 → 라오스어 고르기 · 문장 순서 맞추기${loVoice ? ' · 듣고 고르기' : ''}<br>
         틀린 문제는 끝에 한 번 더 나와요.
       </div>
       <div style="height:14px"></div>
@@ -723,7 +732,15 @@ function startQuiz() {
     if (type === 'listen' && !loVoice) type = 'l2k';
     items.push({ w, type, retry: false });
   }
-  Q = { items, i: 0, hearts: 3, right: 0, total: items.length, graded: new Set(), sel: null, state: 'ask' };
+  // 순서 맞추기: 문장·표현 자체 + 메모의 라오스어 예문. 단어마다 하나씩, 퀴즈의 1/4쯤(최대 4문제)
+  const cands = [];
+  for (const w of order) { const ss = laoSentences(w); if (ss.length) cands.push({ w, s: ss[Math.floor(Math.random() * ss.length)] }); }
+  const nOrd = Math.min(cands.length, Math.max(1, Math.round(items.length / 4)), 4);
+  for (let k = 0; k < nOrd; k++) {
+    const pos = Math.min(items.length - 1, Math.floor((k + 1) * items.length / (nOrd + 1)));
+    items[pos] = { w: cands[k].w, type: 'order', s: cands[k].s, retry: false };
+  }
+  Q ={ items, i: 0, hearts: 3, right: 0, total: items.length, graded: new Set(), sel: null, state: 'ask' };
   const ov = document.createElement('div'); ov.className = 'ov'; ov.id = 'ov'; document.body.appendChild(ov);
   document.body.style.overflow = 'hidden';
   renderQ();
@@ -736,8 +753,91 @@ function makeChoices(item) {
   const picks = [...new Set([...same, ...pool])].slice(0, 3);
   return shuffle([ans, ...picks]);
 }
+/* ---- 순서 맞추기 ---- */
+let SEG = null;
+try { SEG = new Intl.Segmenter('lo', { granularity: 'word' }); } catch (e) { }
+const LAO_C = /[຀-໿]/;
+// 라오스어 문장을 낱말 블록으로: 띄어쓰기 → 브라우저 라오스어 사전 → 내 단어장에 있는 말은 한 블록으로 붙임
+function laoTiles(text, self) {
+  const raw = [];
+  for (const chunk of text.split(/\s+/)) {
+    if (!chunk) continue;
+    if (!SEG) { raw.push(chunk); continue; }
+    for (const g of SEG.segment(chunk)) {
+      if (g.isWordLike) raw.push(g.segment);
+      else if (/\S/.test(g.segment) && raw.length) raw[raw.length - 1] += g.segment;   // 문장부호·ໆ 는 앞 블록에
+    }
+  }
+  const norm = x => x.replace(/\s+/g, '');
+  const vocab = new Set(S.words.map(x => norm(x.lo)).filter(x => x !== norm(self || '')));
+  const tiles = [];
+  for (let i = 0; i < raw.length;) {
+    let j = Math.min(raw.length, i + 5);
+    for (; j > i + 1; j--) if (j - i < raw.length && vocab.has(raw.slice(i, j).join(''))) break;
+    tiles.push(raw.slice(i, j).join('')); i = j;
+  }
+  while (tiles.length > 9) {          // 너무 잘게 쪼개지면 짧은 이웃끼리 합침
+    let b = 0;
+    for (let k = 1; k < tiles.length - 1; k++) if (tiles[k].length + tiles[k + 1].length < tiles[b].length + tiles[b + 1].length) b = k;
+    tiles.splice(b, 2, tiles[b] + tiles[b + 1]);
+  }
+  return tiles;
+}
+function laoSentences(w) {
+  const out = [];
+  if (w.kind !== '단어') out.push({ lo: w.lo.trim(), ko: w.ko, own: true });
+  for (const line of (w.note || '').split(/\n+/)) {
+    const runs = line.match(/[຀-໿][຀-໿\s,.!?…]*/g);
+    if (!runs) continue;
+    const lo = runs.sort((a, b) => b.length - a.length)[0].replace(/[\s,]+$/, '').trim();
+    const ko = line.replace(/[຀-໿]/g, '').replace(/^[\s=:\-–—~()\[\]"'“”‘’.,!?…]+|[\s=:\-–—~()\[\]"'“”‘’,]+$/g, '').trim();
+    if (norm2(lo) === norm2(w.lo)) continue;           // 단어 자체를 다시 적은 줄은 건너뜀
+    out.push({ lo, ko: /[가-힣]/.test(ko) ? ko : '', own: false });
+  }
+  return out.map(s => ({ ...s, tiles: laoTiles(s.lo, s.own ? w.lo : '') })).filter(s => s.tiles.length >= 3);
+}
+function norm2(x) { return x.replace(/\s+/g, ''); }
+function ordTap(where, k) {
+  const it = Q.items[Q.i];
+  if (Q.state !== 'ask') return;
+  if (where === 'b') { if (!it.ans.includes(k)) it.ans.push(k); }
+  else it.ans.splice(k, 1);
+  renderQ();
+}
+function renderOrder(it, ov) {
+  const s = it.s, T = s.tiles;
+  if (!it.bank) {
+    let tries = 0;
+    do { it.bank = shuffle(T.map((_, k) => k)); } while (tries++ < 20 && it.bank.map(k => T[k]).join('') === T.join(''));
+    it.ans = [];
+  }
+  const done = Q.graded.size, pct = done / Q.total * 100;
+  const ok = Q.state === 'ok';
+  const hint = s.ko
+    ? `<div class="say ko">${esc(s.ko)}</div>`
+    : `<div class="ord-hint"><span class="lo" style="font-size:20px;color:var(--txt)">${esc(it.w.lo)}</span> (${esc(it.w.ko)})<br>이 들어간 예문이에요</div>`;
+  ov.innerHTML = `
+    <div class="qtop"><button class="x" onclick="quitQuiz()">✕</button><div class="bar"><i style="width:${pct}%"></i></div><div class="hearts">❤️ ${Q.hearts}</div></div>
+    <div class="qbody">
+      ${it.retry ? '<div class="pill" style="background:#FFF0D6;color:#FF9600;margin-bottom:6px">🔁 아까 틀린 문제</div>' : ''}
+      <div class="qtype">순서대로 놓아 보세요</div>
+      <div class="prompt"><div>${mascot('happy', 56)}</div>${hint}</div>
+      <div class="ord-ans">${it.ans.map((p, k) => `<button class="tile lo ${Q.state === 'ask' ? '' : ok ? 'right' : 'wrong'}" onclick="ordTap('a',${k})">${esc(T[it.bank[p]])}</button>`).join('')}</div>
+      <div class="ord-bank">${it.bank.map((t, p) => it.ans.includes(p)
+        ? `<span class="tile lo ph">${esc(T[t])}</span>`
+        : `<button class="tile lo" onclick="ordTap('b',${p})">${esc(T[t])}</button>`).join('')}</div>
+    </div>
+    <div class="qfoot ${ok ? 'ok' : Q.state === 'bad' ? 'bad' : ''}">
+      ${Q.state === 'ask'
+        ? `<button class="btn" ${it.ans.length !== T.length ? 'disabled' : ''} onclick="check()">확인</button>`
+        : `<div class="fb">${ok ? ['잘했어요! 🎉', '정답! 👏', '완벽해요! ✨', 'ຖືກຕ້ອງ! 맞았어요'][Math.floor(Math.random() * 4)] : '아쉬워요 😢'}
+             <small>${ok ? '' : '정답: '}<span class="lo">${T.map(esc).join(' ')}</span>${s.ko ? `<br>${esc(s.ko)}` : ''}${s.own ? '' : `<br><span style="font-weight:400">예문 속 단어: <span class="lo">${esc(it.w.lo)}</span> = ${esc(it.w.ko)}</span>`}</small></div>
+           <button class="btn ${Q.state === 'bad' ? 'red' : ''}" onclick="nextQ()">계속</button>`}
+    </div>`;
+}
 function renderQ() {
   const it = Q.items[Q.i], ov = $('#ov');
+  if (it.type === 'order') return renderOrder(it, ov);
   if (!it.choices) it.choices = makeChoices(it);
   const done = Q.graded.size, pct = done / Q.total * 100;
   const title = { l2k: '무슨 뜻일까요?', k2l: '라오스어로 뭘까요?', listen: '듣고 뜻을 고르세요' }[it.type];
@@ -772,10 +872,13 @@ function renderQ() {
 }
 function pick(k) { if (Q.state !== 'ask') return; Q.sel = k; renderQ(); }
 function check() {
-  const it = Q.items[Q.i], ans = it.type === 'k2l' ? it.w.lo : it.w.ko;
-  const ok = it.choices[Q.sel] === ans, t = today();
+  const it = Q.items[Q.i], ans = it.type === 'k2l' ? it.w.lo : it.w.ko, t = today();
+  const isOrd = it.type === 'order';
+  const ok = isOrd
+    ? it.ans.map(p => it.s.tiles[it.bank[p]]).join('') === it.s.tiles.join('')   // 같은 글자 블록은 어느 쪽이든 정답
+    : it.choices[Q.sel] === ans;
   const w = S.words.find(x => x.id === it.w.id);
-  if (w && !it.retry) {               // 첫 시도 결과만 숙련도에 반영
+  if (w && !it.retry && (!isOrd || it.s.own)) {   // 메모 예문 문제는 단어 숙련도에 안 넣음               // 첫 시도 결과만 숙련도에 반영
     w.seen++;
     if (ok) { w.right++; w.box = Math.min(6, w.box + 1); w.due = addDays(t, INTERVAL[w.box]); }
     else { w.box = 0; w.due = addDays(t, 1); }
@@ -783,7 +886,7 @@ function check() {
   if (ok) { Q.state = 'ok'; Q.right += it.retry ? 0 : 1; Q.graded.add(Q.i); beep('ok'); }
   else {
     Q.state = 'bad'; Q.hearts--; beep('bad');
-    if (!it.retry) { Q.graded.add(Q.i); Q.items.push({ w: it.w, type: it.type === 'listen' ? 'l2k' : it.type, retry: true }); Q.total++; }
+    if (!it.retry) { Q.graded.add(Q.i); Q.items.push({ w: it.w, type: it.type === 'listen' ? 'l2k' : it.type, s: it.s, retry: true }); Q.total++; }
     else Q.graded.add(Q.i);
   }
   save(); renderQ();
