@@ -1,0 +1,4 @@
+{
+  "firestore": { "rules": "firestore.rules" },
+  "auth": { "providers": { "googleSignIn": { "oAuthBrandDisplayName": "창이랑 라오스어", "supportEmail": "gadeuk.dev@gmail.com", "authorizedRedirectUris": ["https://gadeuk-dev.github.io"] } } }
+}

@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 자기 데이터만 읽고 쓰기 (구글 로그인한 본인)
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid
+        && (request.resource == null || request.resource.size() < 900000);
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

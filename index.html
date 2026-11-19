@@ -191,7 +191,7 @@ function defState() {
            history: {}, lastCheck: null, journal: [], sound: true, pending: [] };
 }
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) return Object.assign(defState(), s); } catch (e) {} return defState(); }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('저장 실패: 저장 공간을 확인해 주세요'); } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('저장 실패: 저장 공간을 확인해 주세요'); } if (window.cloudSoon) cloudSoon(); }
 let S = load();
 const H = (d = today()) => S.history[d] || (S.history[d] = { added: 0, quiz: false, done: false, wrote: false });
 
@@ -1008,6 +1008,7 @@ function openWriting() {
 /* ========== 더보기 ========== */
 function renderMore() {
   $('#main').innerHTML = `
+    ${syncCard()}
     <div class="card">
       <h3>🎯 하루 목표</h3>
       <div class="muted">하루에 새로 가르칠 표현 개수 (최소 5개)</div>
@@ -1038,7 +1039,7 @@ function renderMore() {
     </div>
     <div class="card">
       <h3>💾 백업</h3>
-      <div class="muted" style="margin-bottom:10px">데이터는 이 브라우저에만 저장돼요. 브라우저 기록을 지우면 사라지니 가끔 내보내 두세요.</div>
+      <div class="muted" style="margin-bottom:10px">${CU ? '구글 계정에도 저장되고 있어요. 그래도 가끔 파일로 내보내 두면 더 안전해요.' : '연동하지 않으면 데이터는 이 브라우저에만 저장돼요. 브라우저 기록을 지우면 사라지니 가끔 내보내 두세요.'}</div>
       <div class="row"><button class="btn ghost" onclick="exportData()">내보내기</button><button class="btn ghost" onclick="$('#imp').click()">가져오기</button></div>
       <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(this)">
     </div>
@@ -1100,10 +1101,152 @@ function resetAll() {
   S = defState(); S.lastCheck = today(); save(); render();
 }
 
+/* ========== 폰·컴퓨터 연동 (구글 로그인 + 파이어베이스) ========== */
+const FB_CFG = { apiKey: 'AIzaSyBVsiPKKgl9DsuXeSwdcz7OS76XxfoTFKE', authDomain: 'chang-lao-app.firebaseapp.com', projectId: 'chang-lao-app', appId: '1:830511243539:web:62e91daf33d485df237ae6' };
+const FB_V = '11.0.2', SYNC_KEY = 'chang_lao_sync', BASE_KEY = 'chang_lao_base';
+const DEV = (() => { let d = localStorage.getItem('chang_lao_dev'); if (!d) { d = Math.random().toString(36).slice(2, 10); localStorage.setItem('chang_lao_dev', d); } return d; })();
+let FB = null, CU = null, cloudTimer = null, cloudBusy = false, cloudAgain = false, lastSync = null, syncErr = '';
+const J = x => JSON.stringify(x);
+function getBase() { try { return JSON.parse(localStorage.getItem(BASE_KEY)); } catch (e) { return null; } }
+function setBase(s) { try { localStorage.setItem(BASE_KEY, J(s)); } catch (e) { } }
+// 3방향 합치기: 마지막으로 맞춘 상태(base)와 비교해 바뀐 쪽을 살림. 둘 다 바꾼 건 이 기기 쪽 우선
+function mergeState(L, R, B) {
+  if (!R) return L;
+  const out = Object.assign(defState(), R, L);
+  const bW = new Map((B ? B.words : []).map(w => [w.id, w])), lW = new Map(L.words.map(w => [w.id, w])), rW = new Map(R.words.map(w => [w.id, w]));
+  const words = [];
+  for (const id of new Set([...lW.keys(), ...rW.keys()])) {
+    const l = lW.get(id), r = rW.get(id), b = bW.get(id);
+    if (l && r) words.push(b && J(l) === J(b) ? r : l);
+    else if (l) { if (!(b && J(l) === J(b))) words.push(l); }      // 저쪽에서 지운 건 지움(이쪽에서 고쳤으면 살림)
+    else if (r) { if (!(b && J(r) === J(b))) words.push(r); }
+  }
+  if (!B) {   // 처음 연결: 두 기기에 똑같은 말이 따로 있으면 하나만
+    const seen = new Map();
+    for (const w of words) { const k = w.lo.replace(/\s+/g, '') + '|' + w.ko.trim(); const o = seen.get(k); if (!o || (w.seen || 0) > (o.seen || 0)) seen.set(k, w); }
+    words.length = 0; words.push(...seen.values());
+  }
+  words.sort((a, b) => (a.created || '').localeCompare(b.created || ''));
+  out.words = words;
+  out.history = {};
+  for (const d of new Set([...Object.keys(L.history || {}), ...Object.keys(R.history || {})])) {
+    const a = (L.history || {})[d] || {}, c = (R.history || {})[d] || {}, h = {};
+    for (const k of new Set([...Object.keys(a), ...Object.keys(c)])) h[k] = typeof (a[k] ?? c[k]) === 'number' ? Math.max(a[k] || 0, c[k] || 0) : !!(a[k] || c[k]);
+    out.history[d] = h;
+  }
+  const js = new Map(); for (const j of [...(R.journal || []), ...(L.journal || [])]) js.set(J(j), j);
+  out.journal = [...js.values()].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  for (const k of Object.keys(out)) {
+    if (['words', 'history', 'journal', 'pending', 'coins', 'best', 'lastCheck'].includes(k)) continue;
+    out[k] = B ? (J(L[k]) !== J(B[k]) ? L[k] : R[k]) : L[k];
+  }
+  out.coins = B ? Math.max(0, (R.coins || 0) + (L.coins || 0) - (B.coins || 0)) : Math.max(L.coins || 0, R.coins || 0);
+  if (!B) { out.streak = Math.max(L.streak || 0, R.streak || 0); out.shields = Math.max(L.shields || 0, R.shields || 0); }
+  out.best = Math.max(L.best || 0, R.best || 0, out.streak || 0);
+  out.lastCheck = [L.lastCheck, R.lastCheck].filter(Boolean).sort().pop() || null;
+  out.pending = L.pending || [];
+  return out;
+}
+async function fbLoad() {
+  if (FB) return FB;
+  const u = m => `https://www.gstatic.com/firebasejs/${FB_V}/firebase-${m}.js`;
+  const [app, auth, fs] = await Promise.all([import(u('app')), import(u('auth')), import(u('firestore'))]);
+  const a = app.initializeApp(FB_CFG);
+  FB = { auth, fs, A: auth.getAuth(a), D: fs.getFirestore(a) };
+  return FB;
+}
+function uiAfterSync(changed) {
+  if (!changed) { if (S.tab === 'more' || $('#syncBox')) renderSyncBox(); return; }
+  const busy = Q || $('.modal') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+  if (!busy) render(); else renderSyncBox();
+}
+// 클라우드와 맞추기: 받아서 합치고 → 다시 올림
+async function cloudSync() {
+  if (!CU) return;
+  if (cloudBusy) { cloudAgain = true; return; }
+  cloudBusy = true;
+  try {
+    const { fs, D } = FB, ref = fs.doc(D, 'users', CU.uid);
+    const snap = await fs.getDoc(ref);
+    const R = snap.exists() ? JSON.parse(snap.data().data) : null;
+    const before = J(S);
+    const M = mergeState(S, R, getBase());
+    const changed = J(M) !== before;
+    S = M; localStorage.setItem(KEY, J(S));
+    if (!R || J(M) !== J(R)) await fs.setDoc(ref, { data: J(M), at: fs.serverTimestamp(), dev: DEV, words: M.words.length });
+    setBase(M); lastSync = new Date(); syncErr = '';
+    uiAfterSync(changed);
+  } catch (e) {
+    syncErr = navigator.onLine ? '연동 오류: ' + (e.code || e.message || e) : '인터넷이 끊겨 있어요 (연결되면 다시 맞춰요)';
+    renderSyncBox();
+  } finally {
+    cloudBusy = false;
+    if (cloudAgain) { cloudAgain = false; cloudSoon(); }
+  }
+}
+window.cloudSoon = () => { if (!CU) return; clearTimeout(cloudTimer); cloudTimer = setTimeout(cloudSync, 1500); };
+let unsub = null;
+function watchCloud() {
+  if (unsub) unsub();
+  const { fs, D } = FB;
+  unsub = fs.onSnapshot(fs.doc(D, 'users', CU.uid), s => {
+    if (s.metadata.hasPendingWrites || !s.exists() || s.data().dev === DEV) return;
+    cloudSoon();          // 다른 기기에서 바뀜 → 합치기
+  }, () => { });
+}
+async function cloudInit() {
+  await fbLoad();
+  const user = await new Promise(res => { const off = FB.auth.onAuthStateChanged(FB.A, u => { off(); res(u); }); });
+  if (!user) { localStorage.removeItem(SYNC_KEY); return; }
+  CU = user; localStorage.setItem(SYNC_KEY, user.uid);
+  await cloudSync(); watchCloud();
+}
+async function signIn() {
+  try {
+    toast('구글 로그인 창을 여는 중…');
+    await fbLoad();
+    const p = new FB.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' });
+    const r = await FB.auth.signInWithPopup(FB.A, p);
+    if (localStorage.getItem(SYNC_KEY) && localStorage.getItem(SYNC_KEY) !== r.user.uid) localStorage.removeItem(BASE_KEY);  // 다른 계정이면 처음부터
+    CU = r.user; localStorage.setItem(SYNC_KEY, CU.uid);
+    await cloudSync(); watchCloud();
+    toast(`☁️ 연결됐어요 · 단어 ${S.words.length}개`); render();
+  } catch (e) {
+    const c = e.code || '';
+    toast(c.includes('popup-closed') || c.includes('cancelled') ? '로그인을 취소했어요'
+      : c.includes('popup-blocked') ? '팝업이 막혔어요. 브라우저에서 팝업을 허용해 주세요'
+      : c.includes('unauthorized-domain') ? '이 주소가 아직 로그인 허용 목록에 없어요'
+      : '로그인 실패: ' + (c || e.message));
+  }
+}
+async function signOutCloud() {
+  if (!confirm('연동을 끊을까요? 이 기기의 데이터는 그대로 남아요.')) return;
+  if (unsub) unsub(); unsub = null;
+  try { await FB.auth.signOut(FB.A); } catch (e) { }
+  CU = null; localStorage.removeItem(SYNC_KEY); localStorage.removeItem(BASE_KEY); render();
+}
+function syncInner() {
+  if (!CU) return localStorage.getItem(SYNC_KEY) ? `<div class="muted">☁️ 연결하는 중…</div>`
+    : `<div class="muted" style="line-height:1.6;margin-bottom:10px">폰과 컴퓨터에서 같은 구글 계정으로 로그인하면, 어느 쪽에서 넣은 단어든 양쪽에 저절로 나타나요. 지금 이 기기에 있는 데이터도 합쳐서 올려요.</div>
+       <button class="btn blue" onclick="signIn()">구글로 로그인하고 연동하기</button>`;
+  return `<div style="font-weight:700">✅ ${esc(CU.email || '구글 계정')}</div>
+    <div class="muted" style="margin:4px 0 10px">${syncErr ? `<span style="color:var(--rd)">${esc(syncErr)}</span>` : lastSync ? `마지막으로 맞춘 때 ${lastSync.toTimeString().slice(0, 5)} · 단어 ${S.words.length}개` : '맞추는 중…'}</div>
+    <div class="row"><button class="btn sm ghost" onclick="cloudSync()">지금 맞추기</button><button class="btn sm ghost" onclick="signOutCloud()">연동 끊기</button></div>`;
+}
+function syncCard() { return `<div class="card"><h3>☁️ 폰·컴퓨터 연동</h3><div id="syncBox">${syncInner()}</div></div>`; }
+function renderSyncBox() { const b = $('#syncBox'); if (b) b.innerHTML = syncInner(); }
+
 /* ========== 시작 ========== */
-checkDays();
-render();
-showPending();
+function boot() { checkDays(); render(); showPending(); }
+if (localStorage.getItem(SYNC_KEY)) {
+  // 연동 중이면 다른 기기 기록을 먼저 받아 와서 출석 판정 (못 받아도 6초 뒤엔 진행)
+  render();
+  let booted = false; const go = () => { if (!booted) { booted = true; boot(); } };
+  setTimeout(go, 6000);
+  cloudInit().catch(() => { }).finally(go);
+} else boot();
+window.addEventListener('online', () => cloudSoon());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) cloudSoon(); });
 // 자정을 넘겨 앱을 켜 둔 경우 다시 판정
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.lastCheck !== today()) { checkDays(); render(); showPending(); } });
 </script>
