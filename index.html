@@ -133,6 +133,9 @@ input.lo,textarea.lo{font-size:22px}
 .tile.ph{background:var(--line);color:transparent;box-shadow:none}
 .tile.right{border-color:var(--g);background:var(--gl);box-shadow:0 3px 0 var(--g)}
 .tile.wrong{border-color:var(--r);background:var(--rl);box-shadow:0 3px 0 var(--r)}
+.blank{display:inline-block;min-width:2.6em;border-bottom:3px solid var(--b);color:var(--bd);margin:0 3px;text-align:center}
+.blank.right{color:var(--gd);border-color:var(--g)}
+.blank.wrong{color:var(--rd);border-color:var(--r)}
 .ord-hint{font-size:16px;font-weight:700;color:var(--muted);flex:1}
 .ch.sel{border-color:#84D8FF;background:var(--bl);box-shadow:0 4px 0 #84D8FF;color:var(--bd)}
 .ch.sel .n{border-color:#84D8FF;color:var(--bd)}
@@ -707,7 +710,7 @@ function renderQuizHome() {
       <h3>문제 구성</h3>
       <div class="muted" style="line-height:1.8">
         1. 오늘 넣은 표현 먼저<br>2. 복습할 때가 된 표현 (지금 ${due}개)<br>3. 나머지에서 무작위<br>
-        유형: 라오스어 → 뜻 고르기 · 뜻 → 라오스어 고르기 · 문장 순서 맞추기${loVoice ? ' · 듣고 고르기' : ''}<br>
+        유형: 라오스어 → 뜻 고르기 · 뜻 → 라오스어 고르기 · 문장 순서 맞추기 · 빈칸 채우기${loVoice ? ' · 듣고 고르기' : ''}<br>
         틀린 문제는 끝에 한 번 더 나와요.
       </div>
       <div style="height:14px"></div>
@@ -732,13 +735,17 @@ function startQuiz() {
     if (type === 'listen' && !loVoice) type = 'l2k';
     items.push({ w, type, retry: false });
   }
-  // 순서 맞추기: 문장·표현 자체 + 메모의 라오스어 예문. 단어마다 하나씩, 퀴즈의 1/4쯤(최대 4문제)
+  // 문장 문제(순서 맞추기·빈칸 채우기): 문장·표현 자체 + 메모의 라오스어 예문. 단어마다 하나씩, 퀴즈의 1/3쯤(최대 5문제)
   const cands = [];
   for (const w of order) { const ss = laoSentences(w); if (ss.length) cands.push({ w, s: ss[Math.floor(Math.random() * ss.length)] }); }
-  const nOrd = Math.min(cands.length, Math.max(1, Math.round(items.length / 4)), 4);
-  for (let k = 0; k < nOrd; k++) {
-    const pos = Math.min(items.length - 1, Math.floor((k + 1) * items.length / (nOrd + 1)));
-    items[pos] = { w: cands[k].w, type: 'order', s: cands[k].s, retry: false };
+  const nSent = Math.min(cands.length, Math.max(1, Math.round(items.length / 3)), 5);
+  let flip = Math.random() < .5;
+  for (let k = 0; k < nSent; k++) {
+    const pos = Math.min(items.length - 1, Math.floor((k + 1) * items.length / (nSent + 1)));
+    const { w, s } = cands[k];
+    const b = flip ? makeBlank(w, s) : null;
+    items[pos] = b ? { w, type: 'blank', s, b, retry: false } : { w, type: 'order', s, retry: false };
+    flip = !flip;
   }
   Q ={ items, i: 0, hearts: 3, right: 0, total: items.length, graded: new Set(), sel: null, state: 'ask' };
   const ov = document.createElement('div'); ov.className = 'ov'; ov.id = 'ov'; document.body.appendChild(ov);
@@ -834,9 +841,64 @@ function renderOrder(it, ov) {
            <button class="btn ${Q.state === 'bad' ? 'red' : ''}" onclick="nextQ()">계속</button>`}
     </div>`;
 }
+/* ---- 빈칸 채우기 ---- */
+// 예문이면 그 단어 자리를, 문장 자체면 단어장에 있는 말(없으면 아무 낱말)을 비움. 보기는 내 단어장·다른 예문 낱말에서
+function makeBlank(w, s) {
+  const T = s.tiles, n = norm2, vocab = new Set(S.words.map(x => n(x.lo)));
+  let idx = s.own ? -1 : T.findIndex(t => n(t) === n(w.lo));
+  if (idx < 0) {
+    const known = T.map((t, k) => k).filter(k => vocab.has(n(T[k])) && n(T[k]) !== n(s.lo));
+    const long = T.map((t, k) => k).filter(k => T[k].length >= 3);
+    const pool = known.length ? known : long.length ? long : T.map((t, k) => k);
+    idx = pool[Math.floor(Math.random() * pool.length)];
+  }
+  const ans = T[idx];
+  let p = 0;
+  for (let k = 0; k < idx; k++) p = s.lo.indexOf(T[k], p) + T[k].length;
+  const at = s.lo.indexOf(ans, p);
+  if (at < 0) return null;
+  const others = [];
+  for (const x of S.words) {
+    if (n(x.lo) !== n(s.lo) && x.kind !== '문장') others.push(x.lo.trim());
+    for (const ss of laoSentences(x)) if (n(ss.lo) !== n(s.lo)) others.push(...ss.tiles);
+  }
+  const wrong = shuffle([...new Set(others)].filter(x => n(x) !== n(ans) && x.length >= 2 && !T.includes(x)));
+  if (wrong.length < 2) return null;
+  return { before: s.lo.slice(0, at), after: s.lo.slice(at + ans.length), ans, choices: [ans, ...wrong.slice(0, 3)], isWord: n(ans) === n(w.lo) };
+}
+function renderBlank(it, ov) {
+  const s = it.s, b = it.b;
+  if (!it.choices) it.choices = shuffle(b.choices);
+  const pct = Q.graded.size / Q.total * 100, ok = Q.state === 'ok';
+  const fill = Q.state === 'ask'
+    ? `<span class="blank">${Q.sel !== null ? esc(it.choices[Q.sel]) : '&nbsp;'}</span>`
+    : `<span class="blank ${ok ? 'right' : 'wrong'}">${esc(b.ans)}</span>`;
+  ov.innerHTML = `
+    <div class="qtop"><button class="x" onclick="quitQuiz()">✕</button><div class="bar"><i style="width:${pct}%"></i></div><div class="hearts">❤️ ${Q.hearts}</div></div>
+    <div class="qbody">
+      ${it.retry ? '<div class="pill" style="background:#FFF0D6;color:#FF9600;margin-bottom:6px">🔁 아까 틀린 문제</div>' : ''}
+      <div class="qtype">빈칸에 들어갈 말은?</div>
+      <div class="prompt"><div>${mascot('happy', 56)}</div><div class="say lo" style="font-size:26px">${esc(b.before)}${fill}${esc(b.after)}
+        <div class="ko" style="font-size:16px;font-weight:700;color:var(--muted);font-family:inherit;margin-top:4px">${s.ko ? esc(s.ko) : b.isWord ? `빈칸 뜻: ${esc(it.w.ko)}` : `<span class="lo">${esc(it.w.lo)}</span>(${esc(it.w.ko)})이 들어간 예문`}</div></div></div>
+      <div class="choices">${it.choices.map((c, k) => {
+        let cls = '';
+        if (Q.state !== 'ask') { if (c === b.ans) cls = 'right'; else if (k === Q.sel) cls = 'wrong'; }
+        else if (k === Q.sel) cls = 'sel';
+        return `<button class="ch lo ${cls}" onclick="pick(${k})"><span class="n">${k + 1}</span><span>${esc(c)}</span></button>`;
+      }).join('')}</div>
+    </div>
+    <div class="qfoot ${ok ? 'ok' : Q.state === 'bad' ? 'bad' : ''}">
+      ${Q.state === 'ask'
+        ? `<button class="btn" ${Q.sel === null ? 'disabled' : ''} onclick="check()">확인</button>`
+        : `<div class="fb">${ok ? ['잘했어요! 🎉', '정답! 👏', '완벽해요! ✨', 'ຖືກຕ້ອງ! 맞았어요'][Math.floor(Math.random() * 4)] : '아쉬워요 😢'}
+             <small>${ok ? '' : '정답: '}<span class="lo">${esc(s.lo)}</span>${s.ko ? `<br>${esc(s.ko)}` : ''}${b.isWord || s.own ? '' : `<br><span style="font-weight:400">예문 속 단어: <span class="lo">${esc(it.w.lo)}</span> = ${esc(it.w.ko)}</span>`}</small></div>
+           <button class="btn ${Q.state === 'bad' ? 'red' : ''}" onclick="nextQ()">계속</button>`}
+    </div>`;
+}
 function renderQ() {
   const it = Q.items[Q.i], ov = $('#ov');
   if (it.type === 'order') return renderOrder(it, ov);
+  if (it.type === 'blank') return renderBlank(it, ov);
   if (!it.choices) it.choices = makeChoices(it);
   const done = Q.graded.size, pct = done / Q.total * 100;
   const title = { l2k: '무슨 뜻일까요?', k2l: '라오스어로 뭘까요?', listen: '듣고 뜻을 고르세요' }[it.type];
@@ -873,11 +935,14 @@ function pick(k) { if (Q.state !== 'ask') return; Q.sel = k; renderQ(); }
 function check() {
   const it = Q.items[Q.i], ans = it.type === 'k2l' ? it.w.lo : it.w.ko, t = today();
   const isOrd = it.type === 'order';
+  const isBlank = it.type === 'blank';
   const ok = isOrd
     ? it.ans.map(p => it.s.tiles[it.bank[p]]).join('') === it.s.tiles.join('')   // 같은 글자 블록은 어느 쪽이든 정답
+    : isBlank ? it.choices[Q.sel] === it.b.ans
     : it.choices[Q.sel] === ans;
   const w = S.words.find(x => x.id === it.w.id);
-  if (w && !it.retry && (!isOrd || it.s.own)) {   // 메모 예문 문제는 단어 숙련도에 안 넣음               // 첫 시도 결과만 숙련도에 반영
+  // 메모 예문 문제는 단어 숙련도에 안 넣음 (빈칸이 바로 그 단어일 때만 넣음)
+  if (w && !it.retry && (isOrd ? it.s.own : isBlank ? (it.s.own || it.b.isWord) : true)) {               // 첫 시도 결과만 숙련도에 반영
     w.seen++;
     if (ok) { w.right++; w.box = Math.min(6, w.box + 1); w.due = addDays(t, INTERVAL[w.box]); }
     else { w.box = 0; w.due = addDays(t, 1); }
@@ -885,7 +950,7 @@ function check() {
   if (ok) { Q.state = 'ok'; Q.right += it.retry ? 0 : 1; Q.graded.add(Q.i); beep('ok'); }
   else {
     Q.state = 'bad'; Q.hearts--; beep('bad');
-    if (!it.retry) { Q.graded.add(Q.i); Q.items.push({ w: it.w, type: it.type === 'listen' ? 'l2k' : it.type, s: it.s, retry: true }); Q.total++; }
+    if (!it.retry) { Q.graded.add(Q.i); Q.items.push({ w: it.w, type: it.type === 'listen' ? 'l2k' : it.type, s: it.s, b: it.b, retry: true }); Q.total++; }
     else Q.graded.add(Q.i);
   }
   save(); renderQ();
