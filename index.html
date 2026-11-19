@@ -823,8 +823,7 @@ function renderOrder(it, ov) {
       <div class="qtype">순서대로 놓아 보세요</div>
       <div class="prompt"><div>${mascot('happy', 56)}</div>${hint}</div>
       <div class="ord-ans">${it.ans.map((p, k) => `<button class="tile lo ${Q.state === 'ask' ? '' : ok ? 'right' : 'wrong'}" onclick="ordTap('a',${k})">${esc(T[it.bank[p]])}</button>`).join('')}</div>
-      <div class="ord-bank">${it.bank.map((t, p) => it.ans.includes(p)
-        ? `<span class="tile lo ph">${esc(T[t])}</span>`
+      <div class="ord-bank">${it.bank.map((t, p) => it.ans.includes(p) ? ''      // 쓴 블록은 자리도 안 남김(크기가 힌트 안 되게)
         : `<button class="tile lo" onclick="ordTap('b',${p})">${esc(T[t])}</button>`).join('')}</div>
     </div>
     <div class="qfoot ${ok ? 'ok' : Q.state === 'bad' ? 'bad' : ''}">
