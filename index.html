@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cut">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cut, interactive-widget=resizes-content">
 <meta name="theme-color" content="#58CC02">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -149,8 +149,9 @@ input.lo,textarea.lo{font-size:22px}
 .fb small{display:block;font-family:"Noto Sans KR";font-size:15px;font-weight:700;margin-top:4px}
 
 /* 모달·토스트 */
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:grid;place-items:center;padding:20px}
-.modal .box{background:#fff;border-radius:24px;padding:24px 20px 20px;max-width:380px;width:100%;text-align:center;animation:pop .25s ease-out}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:flex;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.modal .box{background:#fff;border-radius:24px;padding:24px 20px 20px;max-width:380px;width:100%;text-align:center;animation:pop .25s ease-out;margin:auto}
+.modal textarea{max-height:40vh}
 .modal h2{font-size:26px;margin:8px 0}
 .modal p{line-height:1.55;margin:8px 0 18px}
 @keyframes pop{from{transform:scale(.85);opacity:0}}
@@ -375,6 +376,30 @@ function modal(html, btn = '확인', onClose) {
   m.querySelector('.btn').onclick = () => { m.remove(); render(); onClose && onClose(); };
   document.body.appendChild(m);
 }
+/* 휴대폰 자판이 올라오면: 팝업·퀴즈 화면을 '보이는 영역'(자판 위)에 맞추고, 쓰는 줄이 자판에 안 가리게 */
+function fitToKeyboard() {
+  const vv = window.visualViewport; if (!vv) return;
+  const kb = window.innerHeight - vv.height > 120;          // 자판이 떠 있음
+  document.querySelectorAll('.modal, .ov').forEach(el => {
+    if (kb) { el.style.top = vv.offsetTop + 'px'; el.style.height = vv.height + 'px'; el.style.bottom = 'auto'; }
+    else { el.style.top = el.style.height = el.style.bottom = ''; }
+  });
+  if (kb) keepCaretVisible();
+}
+function keepCaretVisible() {
+  const a = document.activeElement;
+  if (!a || !/^(TEXTAREA|INPUT)$/.test(a.tagName)) return;
+  const box = a.closest('.modal, .ov'); if (!box) return;
+  if (a.tagName === 'TEXTAREA') { a.style.height = 'auto'; a.style.height = Math.min(a.scrollHeight + 2, innerHeight * .4) + 'px'; a.scrollTop = a.scrollHeight; }
+  requestAnimationFrame(() => {
+    const r = a.getBoundingClientRect(), vv = window.visualViewport, bottom = vv ? vv.offsetTop + vv.height : innerHeight;
+    if (r.bottom > bottom - 12) box.scrollTop += r.bottom - bottom + 24;
+    else if (r.top < (vv ? vv.offsetTop : 0) + 12) box.scrollTop -= (vv ? vv.offsetTop : 0) + 24 - r.top;
+  });
+}
+if (window.visualViewport) { visualViewport.addEventListener('resize', fitToKeyboard); visualViewport.addEventListener('scroll', fitToKeyboard); }
+document.addEventListener('input', e => { if (e.target.closest && e.target.closest('.modal, .ov')) keepCaretVisible(); });
+document.addEventListener('focusin', e => { if (e.target.closest && e.target.closest('.modal, .ov')) setTimeout(() => { fitToKeyboard(); keepCaretVisible(); }, 300); });
 function burst(ch) {
   for (let i = 0; i < 14; i++) {
     const s = document.createElement('div'); s.className = 'burst'; s.textContent = ch;
