@@ -1315,6 +1315,23 @@ function syncInner() {
 function syncCard() { return `<div class="card"><h3>☁️ 폰·컴퓨터 연동</h3><div id="syncBox">${syncInner()}</div></div>`; }
 function renderSyncBox() { const b = $('#syncBox'); if (b) b.innerHTML = syncInner(); }
 
+/* ========== 새 버전 자동 반영 ==========
+   올릴 때 deploy.sh 가 APP_V 와 version.txt 를 같은 값으로 바꿈.
+   폰이 옛 화면을 기억하고 있어도, 열 때·다시 볼 때 version.txt 를 확인해 다르면 새 주소(?v=)로 다시 불러옴 */
+const APP_V = '20261120-2248';
+function checkNewVersion() {
+  if (Q || $('.modal') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;   // 풀거나 쓰는 중엔 안 건드림
+  fetch('version.txt?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(s => {
+    s = (s || '').trim();
+    if (!s || s === APP_V) return;
+    const u = new URL(location.href);
+    if (u.searchParams.get('v') === s) return;           // 이미 새 주소로 왔는데도 옛 것이면 무한 반복 방지
+    u.searchParams.set('v', s); location.replace(u.toString());
+  }).catch(() => { });
+}
+checkNewVersion();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNewVersion(); });
+
 /* ========== 시작 ========== */
 function boot() { checkDays(); render(); showPending(); }
 if (localStorage.getItem(SYNC_KEY)) {
