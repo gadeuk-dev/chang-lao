@@ -329,7 +329,7 @@ function showPending() {
       ${frozen.length ? `☂️ 우산 ${frozen.length}개가 버텼지만 모자랐어요.<br>` : ''}
       ${lost ? `<b>🐾 연속 ${lost}일 기록이 끊겼어요.</b><br>` : ''}
       🍌 바나나 −${PENALTY_COIN * missed.length}<br>
-      📚 <b>복습 빚 ${S.debt}문제</b>가 오늘 퀴즈에 더해져요.</p>`, '다시 시작할게요');
+      📚 <b>복습 빚 ${S.debt}문제</b>가 전체 복습 퀴즈에 더해져요.</p>`, '다시 시작할게요');
   } else if (frozen.length) {
     modal(`<div style="font-size:72px">☂️</div><h2>우산이 막아줬어요!</h2>
       <p>${frozen.length}일 빠졌지만 우산 ${frozen.length}개가 연속 기록을 지켰어요.<br>남은 우산: ${S.shields}개</p>`, '휴, 다행이다');
@@ -398,7 +398,7 @@ function renderHome() {
   const h = H(), t = today(), mood = moodNow();
   const say = {
     proud: `오늘 할 일 끝! 최고예요 👑<br>내일도 만나요. ຂອບໃຈ!`,
-    sad: `빚진 복습이 <b>${S.debt}문제</b> 있어요…<br>오늘 퀴즈로 갚아 주세요 🥺`,
+    sad: `빚진 복습이 <b>${S.debt}문제</b> 있어요…<br>전체 복습 퀴즈로 갚아 주세요 🥺`,
     worried: `벌써 저녁이에요!<br>자정 전에 오늘 할 일을 끝내야 기록이 이어져요.`,
     happy: S.words.length ? `ສະບາຍດີ! 오늘 배운 표현을 <b>${S.goal}개</b> 넣어 주면<br>제가 퀴즈로 돌려 드릴게요.` : `ສະບາຍດີ! 저는 코끼리 <b>창이</b>예요.<br>오늘 배운 라오스어를 저한테 가르쳐 주세요!`
   }[mood];
@@ -415,18 +415,20 @@ function renderHome() {
   const addPct = Math.min(100, h.added / S.goal * 100);
   $('#main').innerHTML = `
     <div class="hero"><div class="mascot">${mascot(mood)}</div><div class="bubble">${say}</div></div>
-    ${S.debt ? `<div class="card debt"><h3>📚 복습 빚 ${S.debt}문제</h3><div class="muted" style="color:#B33">빠진 날의 벌칙이에요. 오늘 퀴즈가 ${S.debt}문제 더 길어져요. 다 풀면 빚이 사라져요.</div></div>` : ''}
+    ${S.debt ? `<div class="card debt"><h3>📚 복습 빚 ${S.debt}문제</h3><div class="muted" style="color:#B33">빠진 날의 벌칙이에요. 전체 복습 퀴즈가 ${S.debt}문제 더 길어져요. 다 풀면 빚이 사라져요.</div></div>` : ''}
     <div class="card">
       <h3>오늘 할 일</h3>
       <div class="task ${h.added >= S.goal ? 'ok' : ''}"><div class="chk">${h.added >= S.goal ? '✓' : '✏️'}</div>
         <div class="t">새 표현 ${S.goal}개 가르치기 <span class="muted">${h.added}/${S.goal}</span><div class="bar"><i style="width:${addPct}%"></i></div></div></div>
       <div class="task ${h.quiz ? 'ok' : ''}"><div class="chk">${h.quiz ? '✓' : '🎯'}</div>
-        <div class="t">창이의 퀴즈 풀기 <span class="muted">${10 + S.debt}문제${due ? ` · 복습할 단어 ${due}개` : ''}</span></div></div>
+        <div class="t">오늘 단어 퀴즈 풀기 <span class="muted">10문제</span></div></div>
+      <div class="task ${h.rquiz ? 'ok' : ''}"><div class="chk">${h.rquiz ? '✓' : '📚'}</div>
+        <div class="t">${S.debt ? '전체 복습으로 빚 갚기' : '보너스: 전체 복습 퀴즈'} <span class="muted">${10 + S.debt}문제${due ? ` · 복습할 단어 ${due}개` : ''}</span></div></div>
       <div class="task ${h.wrote ? 'ok' : ''}"><div class="chk">${h.wrote ? '✓' : '📝'}</div>
         <div class="t">보너스: 짧은 글쓰기 <span class="pill">🍌+5</span></div></div>
       <div class="row" style="margin-top:12px">
         <button class="btn ${h.added >= S.goal ? 'ghost' : ''}" onclick="go('add')">입력하기</button>
-        <button class="btn blue" onclick="startQuiz()" ${S.words.length < 2 ? 'disabled' : ''}>퀴즈 시작</button>
+        <button class="btn blue" onclick="go('quiz')" ${S.words.length < 2 ? 'disabled' : ''}>퀴즈 고르기</button>
       </div>
       ${S.words.length >= 3 ? `<button class="btn purple" style="margin-top:12px" onclick="openWriting()">짧은 글쓰기</button>` : ''}
     </div>
@@ -701,35 +703,51 @@ function delWord(id) {
 /* ========== 퀴즈 ========== */
 let Q = null;
 function renderQuizHome() {
-  const h = H(), n = 10 + S.debt, t = today();
-  const due = S.words.filter(w => w.due <= t).length;
+  const h = H(), t = today(), few = S.words.length < 2;
+  const due = S.words.filter(w => w.due <= t).length, nToday = S.words.filter(w => w.created === t).length;
+  const done = x => x ? '<span class="pill" style="background:var(--gl);color:var(--gd)">✓ 완료</span>' : '';
   $('#main').innerHTML = `
     <div class="hero"><div class="mascot">${mascot(S.debt ? 'sad' : 'happy', 90)}</div>
-      <div class="bubble">${S.words.length < 2 ? '단어가 2개 이상 있어야 퀴즈를 낼 수 있어요!' : `오늘 퀴즈는 <b>${n}문제</b>예요.${S.debt ? `<br>(복습 빚 ${S.debt}문제 포함)` : ''}<br>하트 3개가 다 떨어지면 처음부터!`}</div></div>
+      <div class="bubble">${few ? '단어가 2개 이상 있어야 퀴즈를 낼 수 있어요!' : '어떤 퀴즈를 풀까요?<br>하트 3개가 다 떨어지면 처음부터!'}</div></div>
     <div class="card">
-      <h3>문제 구성</h3>
-      <div class="muted" style="line-height:1.8">
-        1. 오늘 넣은 표현 먼저<br>2. 복습할 때가 된 표현 (지금 ${due}개)<br>3. 나머지에서 무작위<br>
-        유형: 라오스어 → 뜻 고르기 · 뜻 → 라오스어 고르기 · 뜻 보고 직접 쓰기 · 문장 순서 맞추기 · 빈칸 채우기${loVoice ? ' · 듣고 고르기' : ''}<br>
-        틀린 문제는 끝에 한 번 더 나와요.
-      </div>
-      <div style="height:14px"></div>
-      <button class="btn blue" onclick="startQuiz()" ${S.words.length < 2 ? 'disabled' : ''}>${h.quiz ? '한 번 더 풀기 (연습)' : '퀴즈 시작'}</button>
+      <h3>✏️ 오늘 단어 퀴즈 ${done(h.quiz)}</h3>
+      <div class="muted" style="line-height:1.7">오늘 넣은 단어 <b>${nToday}개</b>로 10문제. 풀어야 오늘 출석이 채워져요.</div>
+      <div style="height:12px"></div>
+      <button class="btn" onclick="startQuiz('today')" ${few || !nToday ? 'disabled' : ''}>${!nToday ? '오늘 넣은 단어가 없어요' : h.quiz ? '한 번 더 풀기 (연습)' : '오늘 단어 퀴즈 시작'}</button>
+    </div>
+    <div class="card">
+      <h3>📚 전체 복습 퀴즈 ${done(h.rquiz)}</h3>
+      <div class="muted" style="line-height:1.7">지금까지 넣은 단어 <b>${S.words.length}개</b> 중 복습할 때가 된 것(${due}개)·약한 것부터 <b>${10 + S.debt}문제</b>.${S.debt ? `<br><span style="color:#B33">복습 빚 ${S.debt}문제 포함 · 다 풀면 빚이 사라져요</span>` : ''}</div>
+      <div style="height:12px"></div>
+      <button class="btn blue" onclick="startQuiz('all')" ${few ? 'disabled' : ''}>${h.rquiz ? '한 번 더 풀기 (연습)' : '전체 복습 퀴즈 시작'}</button>
+    </div>
+    <div class="card">
+      <h3>문제 유형</h3>
+      <div class="muted" style="line-height:1.8">라오스어 → 뜻 고르기 · 뜻 → 라오스어 고르기 · 뜻 보고 직접 쓰기 · 문장 순서 맞추기 · 빈칸 채우기${loVoice ? ' · 듣고 고르기' : ''}<br>틀린 문제는 끝에 한 번 더 나와요.</div>
     </div>
     <div class="card">
       <h3>🎧 듣기 문제 ${loVoice ? '<span class="pill" style="background:var(--gl);color:var(--gd)">켜짐</span>' : '<span class="pill">이 기기 미지원</span>'}</h3>
       <div class="muted">${loVoice ? `라오스어 음성(${esc(loVoice.name)})으로 읽어 줘요.` : '기기에 라오스어 음성이 있으면 자동으로 듣기 문제가 섞여요. 더보기 탭에서 설정 방법을 확인하세요.'}</div>
     </div>`;
 }
-function startQuiz() {
+// mode 'today' = 오늘 넣은 단어로 10문제 · 'all' = 전체 단어 복습 10문제(+복습 빚)
+function startQuiz(mode = 'today') {
   if (S.words.length < 2) return toast('단어를 2개 이상 먼저 넣어 주세요');
-  const t = today(), n = 10 + S.debt;
-  const todayW = shuffle(S.words.filter(w => w.created === t));
-  const due = S.words.filter(w => w.created !== t && w.due <= t).sort((a, b) => a.box - b.box || a.due.localeCompare(b.due));
-  const rest = shuffle(S.words.filter(w => w.created !== t && w.due > t));
-  const order = [...todayW, ...due, ...rest];
+  const t = today();
+  let order, n;
+  if (mode === 'today') {
+    order = shuffle(S.words.filter(w => w.created === t));
+    if (!order.length) return toast('오늘 넣은 단어가 아직 없어요');
+    n = 10;
+  } else {
+    // 복습 때가 된 것 → 약한 것(상자 낮은 것) → 나머지 순, 같은 무리 안에서는 섞기
+    const due = shuffle(S.words.filter(w => w.due <= t)).sort((a, b) => a.box - b.box);
+    const rest = shuffle(S.words.filter(w => w.due > t)).sort((a, b) => a.box - b.box);
+    order = [...due, ...rest];
+    n = 10 + S.debt;
+  }
   const items = [];
-  for (let i = 0; items.length < n && i < order.length * 3; i++) {
+  for (let i = 0; items.length < n; i++) {          // 단어가 적으면 유형을 바꿔 가며 되풀이해서라도 n문제 채움
     const w = order[i % order.length], r = Math.random();
     let type = i < order.length ? (r < .45 ? 'l2k' : r < .65 ? 'k2l' : r < .87 ? 'type' : 'listen') : (r < .4 ? 'k2l' : r < .65 ? 'type' : 'l2k');
     if (type === 'listen' && !loVoice) type = 'l2k';
@@ -748,7 +766,7 @@ function startQuiz() {
     items[pos] = b ? { w, type: 'blank', s, b, retry: false } : { w, type: 'order', s, retry: false };
     flip = !flip;
   }
-  Q ={ items, i: 0, hearts: 3, right: 0, total: items.length, graded: new Set(), sel: null, state: 'ask' };
+  Q = { mode, items, i: 0, hearts: 3, right: 0, total: items.length, graded: new Set(), sel: null, state: 'ask' };
   const ov = document.createElement('div'); ov.className = 'ov'; ov.id = 'ov'; document.body.appendChild(ov);
   document.body.style.overflow = 'hidden';
   renderQ();
@@ -996,22 +1014,24 @@ function nextQ() {
   renderQ();
 }
 function closeOv() { $('#ov') && $('#ov').remove(); document.body.style.overflow = ''; }
-function quitQuiz() { if (confirm('그만둘까요? 지금까지 푼 건 저장되지만 오늘 퀴즈는 완료되지 않아요.')) { closeOv(); Q = null; render(); } }
+function quitQuiz() { if (confirm('그만둘까요? 지금까지 푼 건 저장되지만 이 퀴즈는 완료되지 않아요.')) { closeOv(); Q = null; render(); } }
 function endQuiz(win) {
   const h = H(), first = Q.items.filter(x => !x.retry).length, acc = Math.round(Q.right / first * 100);
   closeOv();
   if (!win) {
-    modal(`${mascot('sad', 110)}<h2>하트를 다 썼어요</h2><p>${first}문제 중 ${Q.right}개 맞혔어요.<br>틀린 단어는 숙련도가 내려갔어요. 다시 도전해요!</p>`, '다시 풀기', () => startQuiz());
+    const m = Q.mode;
+    modal(`${mascot('sad', 110)}<h2>하트를 다 썼어요</h2><p>${first}문제 중 ${Q.right}개 맞혔어요.<br>틀린 단어는 숙련도가 내려갔어요. 다시 도전해요!</p>`, '다시 풀기', () => startQuiz(m));
     Q = null; return;
   }
-  const wasDone = h.quiz;
+  const isAll = Q.mode === 'all', flag = isAll ? 'rquiz' : 'quiz';
+  const wasDone = !!h[flag];
   let reward = 0;
-  if (!wasDone) { h.quiz = true; reward = 5 + Q.right; S.coins += reward; }
-  const paid = S.debt; if (!wasDone) S.debt = 0;
+  if (!wasDone) { h[flag] = true; reward = 5 + Q.right; S.coins += reward; }
+  const paid = isAll && !wasDone ? S.debt : 0; if (paid) S.debt = 0;
   save(); beep('win'); burst('⭐');
-  modal(`${mascot('proud', 110)}<h2>퀴즈 완료!</h2>
+  modal(`${mascot('proud', 110)}<h2>${isAll ? '전체 복습 완료!' : '오늘 단어 퀴즈 완료!'}</h2>
     <div class="statgrid"><div><b>${acc}%</b><span>정답률</span></div><div><b>❤️ ${Q.hearts}</b><span>남은 하트</span></div><div><b>🍌 ${reward}</b><span>보상</span></div></div>
-    <p>${paid && !wasDone ? `📚 복습 빚 ${paid}문제를 다 갚았어요!<br>` : ''}${wasDone ? '연습 모드라 보상은 없어요.' : ''}</p>`, '계속', () => { tryCompleteDay(); renderTop(); });
+    <p>${paid ? `📚 복습 빚 ${paid}문제를 다 갚았어요!<br>` : ''}${wasDone ? '오늘 이미 받은 퀴즈라 보상은 없어요 (연습).' : ''}${!isAll && !h.rquiz ? '<br>전체 복습 퀴즈도 풀면 바나나를 더 받아요.' : ''}</p>`, '계속', () => { tryCompleteDay(); render(); });
   Q = null;
 }
 
