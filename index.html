@@ -710,7 +710,7 @@ function renderQuizHome() {
       <h3>문제 구성</h3>
       <div class="muted" style="line-height:1.8">
         1. 오늘 넣은 표현 먼저<br>2. 복습할 때가 된 표현 (지금 ${due}개)<br>3. 나머지에서 무작위<br>
-        유형: 라오스어 → 뜻 고르기 · 뜻 → 라오스어 고르기 · 문장 순서 맞추기 · 빈칸 채우기${loVoice ? ' · 듣고 고르기' : ''}<br>
+        유형: 라오스어 → 뜻 고르기 · 뜻 → 라오스어 고르기 · 뜻 보고 직접 쓰기 · 문장 순서 맞추기 · 빈칸 채우기${loVoice ? ' · 듣고 고르기' : ''}<br>
         틀린 문제는 끝에 한 번 더 나와요.
       </div>
       <div style="height:14px"></div>
@@ -731,8 +731,9 @@ function startQuiz() {
   const items = [];
   for (let i = 0; items.length < n && i < order.length * 3; i++) {
     const w = order[i % order.length], r = Math.random();
-    let type = i < order.length ? (r < .6 ? 'l2k' : r < .85 ? 'k2l' : 'listen') : (r < .5 ? 'k2l' : 'l2k');
+    let type = i < order.length ? (r < .45 ? 'l2k' : r < .65 ? 'k2l' : r < .87 ? 'type' : 'listen') : (r < .4 ? 'k2l' : r < .65 ? 'type' : 'l2k');
     if (type === 'listen' && !loVoice) type = 'l2k';
+    if (type === 'type' && (w.kind === '문장' || norm2(w.lo).length > 24)) type = 'k2l';   // 긴 문장은 직접 치기 대신 고르기
     items.push({ w, type, retry: false });
   }
   // 문장 문제(순서 맞추기·빈칸 채우기): 문장·표현 자체 + 메모의 라오스어 예문. 단어마다 하나씩, 퀴즈의 1/3쯤(최대 5문제)
@@ -895,8 +896,40 @@ function renderBlank(it, ov) {
            <button class="btn ${Q.state === 'bad' ? 'red' : ''}" onclick="nextQ()">계속</button>`}
     </div>`;
 }
+/* ---- 직접 치기: 뜻 보고 라오스어 통째로 입력 ---- */
+// 비교할 때: 띄어쓰기·문장부호 무시, 글자 순서 실수(ເເ 등) 바로잡고, 옛 표기(ຫລ·ຫນ·ຫມ)는 같은 것으로
+function normLao(s) {
+  return fixLao((s || '').normalize('NFC')).replace(/[\s.,!?…'"“”‘’()\-]/g, '')
+    .replace(/ຫລ/g, 'ຫຼ').replace(/ຫນ/g, 'ໜ').replace(/ຫມ/g, 'ໝ');
+}
+function renderType(it, ov) {
+  const pct = Q.graded.size / Q.total * 100, ok = Q.state === 'ok', asking = Q.state === 'ask';
+  ov.innerHTML = `
+    <div class="qtop"><button class="x" onclick="quitQuiz()">✕</button><div class="bar"><i style="width:${pct}%"></i></div><div class="hearts">❤️ ${Q.hearts}</div></div>
+    <div class="qbody">
+      ${it.retry ? '<div class="pill" style="background:#FFF0D6;color:#FF9600;margin-bottom:6px">🔁 아까 틀린 문제</div>' : ''}
+      <div class="qtype">라오스어로 직접 써 보세요</div>
+      <div class="prompt"><div>${mascot('happy', 56)}</div><div class="say ko">${esc(it.w.ko)}</div></div>
+      <input id="tyIn" class="lo" lang="lo" autocomplete="off" autocapitalize="off" spellcheck="false" style="font-size:26px"
+        placeholder="여기에 라오스어로" value="${esc(it.typed || '')}" ${asking ? '' : 'readonly'}
+        oninput="Q.items[Q.i].typed=this.value;$('#tyBtn')&&($('#tyBtn').disabled=!this.value.trim())"
+        onkeydown="if(event.key==='Enter'&&this.value.trim()&&Q.state==='ask'){event.preventDefault();check()}">
+      ${asking ? `<div class="muted" style="margin-top:8px;font-size:13px">휴대폰·컴퓨터에 라오스어 자판이 있어야 해요 · 띄어쓰기는 상관없어요</div>
+        <button class="btn ghost sm" style="margin-top:12px" onclick="Q.items[Q.i].typed='';Q.items[Q.i].gaveUp=true;check()">모르겠어요</button>`
+      : !ok && it.typed ? `<div class="muted" style="margin-top:8px">내가 쓴 것: <span class="lo" style="font-size:20px;color:var(--rd)">${esc(it.typed)}</span></div>` : ''}
+    </div>
+    <div class="qfoot ${ok ? 'ok' : Q.state === 'bad' ? 'bad' : ''}">
+      ${asking
+        ? `<button class="btn" id="tyBtn" ${(it.typed || '').trim() ? '' : 'disabled'} onclick="check()">확인</button>`
+        : `<div class="fb">${ok ? ['잘했어요! 🎉', '정답! 👏', '완벽해요! ✨', 'ຖືກຕ້ອງ! 맞았어요'][Math.floor(Math.random() * 4)] : '아쉬워요 😢'}
+             <small>${ok ? '' : '정답: '}<span class="lo" style="font-size:20px">${esc(it.w.lo)}</span> = ${esc(it.w.ko)}${ok && it.typed.trim() !== it.w.lo.trim() ? '<br><span style="font-weight:400">(표기가 조금 달라도 같은 말로 쳤어요)</span>' : ''}${it.w.note ? `<br><span style="font-weight:400">${esc(it.w.note)}</span>` : ''}</small></div>
+           <button class="btn ${Q.state === 'bad' ? 'red' : ''}" onclick="nextQ()">계속</button>`}
+    </div>`;
+  if (asking) setTimeout(() => { const i = $('#tyIn'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 50);
+}
 function renderQ() {
   const it = Q.items[Q.i], ov = $('#ov');
+  if (it.type === 'type') return renderType(it, ov);
   if (it.type === 'order') return renderOrder(it, ov);
   if (it.type === 'blank') return renderBlank(it, ov);
   if (!it.choices) it.choices = makeChoices(it);
@@ -936,7 +969,8 @@ function check() {
   const it = Q.items[Q.i], ans = it.type === 'k2l' ? it.w.lo : it.w.ko, t = today();
   const isOrd = it.type === 'order';
   const isBlank = it.type === 'blank';
-  const ok = isOrd
+  const ok = it.type === 'type' ? !it.gaveUp && !!normLao(it.typed) && normLao(it.typed) === normLao(it.w.lo)
+    : isOrd
     ? it.ans.map(p => it.s.tiles[it.bank[p]]).join('') === it.s.tiles.join('')   // 같은 글자 블록은 어느 쪽이든 정답
     : isBlank ? it.choices[Q.sel] === it.b.ans
     : it.choices[Q.sel] === ans;
