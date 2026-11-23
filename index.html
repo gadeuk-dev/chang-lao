@@ -851,6 +851,11 @@ function startQuiz(mode = 'today') {
     items[pos] = b ? { w, type: 'blank', s, b, retry: false } : { w, type: 'order', s, retry: false };
     flip = !flip;
   }
+  // 직접 쓰기는 10문제 중 4문제 이상(40%) 보장: 모자라면 고르기 문제를 직접 쓰기로 바꿈
+  const canType = w => w.kind !== '문장' && norm2(w.lo).length <= 24;
+  const need = Math.ceil(items.length * 0.4);
+  const swap = shuffle(items.map((x, k) => k).filter(k => ['l2k', 'k2l', 'listen'].includes(items[k].type) && canType(items[k].w)));
+  for (let have = items.filter(x => x.type === 'type').length; have < need && swap.length; have++) items[swap.pop()].type = 'type';
   Q = { mode, items, i: 0, hearts: 3, right: 0, total: items.length, graded: new Set(), sel: null, state: 'ask' };
   const ov = document.createElement('div'); ov.className = 'ov'; ov.id = 'ov'; document.body.appendChild(ov);
   document.body.style.overflow = 'hidden';
@@ -1530,7 +1535,7 @@ function renderSyncBox() { const b = $('#syncBox'); if (b) b.innerHTML = syncInn
 /* ========== 새 버전 자동 반영 ==========
    올릴 때 deploy.sh 가 APP_V 와 version.txt 를 같은 값으로 바꿈.
    폰이 옛 화면을 기억하고 있어도, 열 때·다시 볼 때 version.txt 를 확인해 다르면 새 주소(?v=)로 다시 불러옴 */
-const APP_V = '20261120-2304';
+const APP_V = '20261123-2344';
 function checkNewVersion() {
   if (Q || $('.modal') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;   // 풀거나 쓰는 중엔 안 건드림
   fetch('version.txt?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(s => {
