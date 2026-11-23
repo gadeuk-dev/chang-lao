@@ -30,7 +30,7 @@ button{font:inherit;cursor:pointer}
 .top{position:sticky;top:0;z-index:5;background:var(--bg);display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:2px solid var(--line);margin:0 -16px 16px;padding-left:16px;padding-right:16px}
 .stat{display:flex;align-items:center;gap:4px;font-weight:900;font-size:17px}
 .stat .ic{font-size:20px}
-.s-streak{color:#FF9600}.s-coin{color:var(--yd)}.s-shield{color:var(--bd)}.s-debt{color:var(--rd)}
+.s-streak{color:#FF9600}.s-coin{color:#1CB0F6}.s-shield{color:var(--bd)}.s-debt{color:var(--rd)}
 
 /* 하단 탭 */
 nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid var(--line);display:flex;justify-content:center;z-index:6;padding-bottom:env(safe-area-inset-bottom)}
@@ -152,6 +152,27 @@ input.lo,textarea.lo{font-size:22px}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:flex;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 .modal .box{background:#fff;border-radius:24px;padding:24px 20px 20px;max-width:380px;width:100%;text-align:center;animation:pop .25s ease-out;margin:auto}
 .modal textarea{max-height:40vh}
+.mimi{object-fit:contain;display:block}
+.room{position:relative;width:100%;aspect-ratio:1/1;border-radius:22px;overflow:hidden;border:3px solid var(--line);background:#f4ead8;user-select:none}
+.room .rbg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.room .rprop{position:absolute;height:auto;pointer-events:none;filter:drop-shadow(0 3px 2px rgba(0,0,0,.18))}
+.room .rcat{position:absolute;left:50%;top:44%;width:34%;transform:translateX(-50%);z-index:5;cursor:pointer;animation:bob 2.6s ease-in-out infinite}
+.room .rcat img{width:100%;display:block;filter:drop-shadow(0 6px 3px rgba(0,0,0,.2))}
+.room .rcat.jump{animation:catjump .5s ease-out}
+@keyframes catjump{0%{transform:translateX(-50%)}40%{transform:translateX(-50%) translateY(-14%) scale(1.04)}100%{transform:translateX(-50%)}}
+.room .rsay{position:absolute;left:50%;top:22%;transform:translateX(-50%);background:#fff;border:2px solid var(--line);border-radius:16px;padding:6px 12px;font-weight:700;z-index:8;text-align:center;max-width:80%;box-shadow:0 3px 0 var(--line)}
+.room .rsay .lo{font-size:20px}
+.room .rname{position:absolute;left:10px;top:10px;background:rgba(255,255,255,.9);border-radius:12px;padding:4px 10px;font-weight:900;z-index:8}
+.room .rname button{border:none;background:none;font-size:14px;padding:0 0 0 2px}
+.room .rgem{position:absolute;right:10px;top:10px;background:rgba(255,255,255,.9);border-radius:12px;padding:4px 10px;font-weight:900;color:#1CB0F6;z-index:8}
+.shopgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.shopit{border:2px solid var(--line);border-radius:14px;padding:6px;text-align:center;display:flex;flex-direction:column;gap:4px}
+.shopit.on{border-color:var(--g);background:#F4FCEB}
+.shopit .sim{aspect-ratio:1/1;display:grid;place-items:center;border-radius:10px;background:var(--soft);overflow:hidden}
+.shopit .sim img{max-width:90%;max-height:90%}
+.shopit .sim.bgim img{max-width:100%;max-height:100%;width:100%;height:100%;object-fit:cover}
+.shopit .snm{font-size:12px;font-weight:700;line-height:1.3;min-height:31px;display:grid;place-items:center}
+.shopit .btn{width:100%;padding:6px 0;font-size:13px}
 .jbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .jbtns .btn{width:auto;padding:6px 12px}
 .fbk{border:2px solid var(--line);border-radius:16px;padding:10px 14px;margin-top:10px}
@@ -198,7 +219,8 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 
 function defState() {
   return { words: [], goal: 5, streak: 0, best: 0, coins: 0, shields: 1, debt: 0,
-           history: {}, lastCheck: null, journal: [], sound: true, pending: [] };
+           history: {}, lastCheck: null, journal: [], sound: true, pending: [],
+           cat: { name: '창이', owned: ['basic'], bg: 'basic', props: {}, wear: '' } };
 }
 function load() { try { const s = JSON.parse(localStorage.getItem(KEY)); if (s) return Object.assign(defState(), s); } catch (e) {} return defState(); }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('저장 실패: 저장 공간을 확인해 주세요'); } if (window.cloudSoon) cloudSoon(); }
@@ -277,31 +299,22 @@ function applyFix(inputId, boxId) {
   toast('고쳤어요');
 }
 
-/* ========== 마스코트: 코끼리 '창이' (ຊ້າງ = 코끼리) ========== */
+/* ========== 마스코트: 고양이 '창이' — 싸이월드 미니미풍 그림(img/), 이름은 고양이 방에서 바꿈 ========== */
+const catName = () => (S.cat && S.cat.name) || '창이';
+// 이름 뒤 조사: 받침 있으면 이/을/은/이랑/이에요
+function nm(p = '') {
+  const n = catName(), c = n.charCodeAt(n.length - 1), bat = c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 > 0;
+  const t = { 가: bat ? '이' : '가', 를: bat ? '을' : '를', 는: bat ? '은' : '는', 랑: bat ? '이랑' : '랑', 예요: bat ? '이에요' : '예요' };
+  return n + (t[p] ?? p);
+}
+const catWear = () => (S.cat && typeof S.cat.wear === 'string') ? S.cat.wear : '';
+// 기분별 얼굴. 기쁠 땐 지금 입은 옷 그대로
+function catImg(m = 'happy') {
+  if (m === 'happy' && catWear()) return `img/w_${catWear()}.png`;
+  return `img/cat_${['happy', 'sad', 'worried', 'proud'].includes(m) ? m : 'happy'}.png`;
+}
 function mascot(m = 'happy', size = 110) {
-  const ink = '#2B2D42', skin = '#B9CCE8', ear = '#9DB3D6';
-  const arcs = m === 'happy' || m === 'proud';
-  const eyes = arcs
-    ? `<path d="M41 51 q6 -8 12 0" stroke="${ink}" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M67 51 q6 -8 12 0" stroke="${ink}" stroke-width="4.5" fill="none" stroke-linecap="round"/>`
-    : `<circle cx="47" cy="50" r="5.5" fill="${ink}"/><circle cx="73" cy="50" r="5.5" fill="${ink}"/><circle cx="49" cy="48" r="1.9" fill="#fff"/><circle cx="75" cy="48" r="1.9" fill="#fff"/>`;
-  const brows = m === 'sad' ? `<path d="M39 44 l13 -6 M81 44 l-13 -6" stroke="${ink}" stroke-width="3.5" stroke-linecap="round"/>`
-              : m === 'worried' ? `<path d="M40 43 l12 -4 M80 43 l-12 -4" stroke="${ink}" stroke-width="3.5" stroke-linecap="round"/>` : '';
-  const tear = m === 'sad' ? `<path d="M44 58 q-4 7 0 9 q4 -2 0 -9z" fill="#5BC0F8"/>` : '';
-  const mouth = (m === 'sad' || m === 'worried') ? `<path d="M68 82 q5 -4 10 0" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`
-              : `<path d="M67 78 q6 7 12 0" stroke="${ink}" stroke-width="3" fill="#FF8FA3" stroke-linecap="round"/>`;
-  const crown = m === 'proud' ? `<path d="M44 20 l4 -13 l8 8 l4 -11 l4 11 l8 -8 l4 13 z" fill="#FFC800" stroke="#E5A800" stroke-width="2" stroke-linejoin="round"/>` : '';
-  // 귀에 꽂은 독참파(라오스 국화)
-  const flower = `<g transform="translate(101 30)">${[0,72,144,216,288].map(a => `<ellipse cx="0" cy="-7" rx="4.5" ry="8" fill="#fff" stroke="#F2D6A2" stroke-width="1" transform="rotate(${a})"/>`).join('')}<circle r="3.5" fill="#FFC800"/></g>`;
-  return `<svg width="${size}" height="${size}" viewBox="0 0 124 116" aria-label="코끼리 창이">
-    <ellipse cx="24" cy="54" rx="22" ry="29" fill="${ear}"/><ellipse cx="26" cy="54" rx="13" ry="19" fill="#F6B9C6"/>
-    <ellipse cx="96" cy="54" rx="22" ry="29" fill="${ear}"/><ellipse cx="94" cy="54" rx="13" ry="19" fill="#F6B9C6"/>
-    ${flower}
-    <circle cx="60" cy="54" r="37" fill="${skin}"/>
-    <path d="M52 68 C50 86 46 94 39 98 C34 101 37 108 43 106 C56 102 64 89 67 70 Z" fill="${skin}"/>
-    <path d="M44 100 q3 2 6 -1" stroke="#9DB3D6" stroke-width="2" fill="none"/>
-    <ellipse cx="36" cy="66" rx="7" ry="4.5" fill="#FF9DB0" opacity=".7"/><ellipse cx="85" cy="66" rx="7" ry="4.5" fill="#FF9DB0" opacity=".7"/>
-    ${brows}${eyes}${tear}${mouth}${crown}
-  </svg>`;
+  return `<img class="mimi" src="${catImg(m)}" width="${size}" height="${size}" alt="고양이 ${esc(catName())}" draggable="false">`;
 }
 
 /* ========== 출석·패널티 판정 ========== */
@@ -334,11 +347,11 @@ function showPending() {
   const missed = ev.filter(e => e.type === 'missed'), frozen = ev.filter(e => e.type === 'frozen');
   if (missed.length) {
     const lost = Math.max(...missed.map(e => e.lost));
-    modal(`${mascot('sad', 120)}<h2>창이가 기다렸어요…</h2>
+    modal(`${mascot('sad', 120)}<h2>${esc(nm("가"))} 기다렸어요…</h2>
       <p>${missed.length}일 동안 함께하지 못했어요.<br>
       ${frozen.length ? `☂️ 우산 ${frozen.length}개가 버텼지만 모자랐어요.<br>` : ''}
       ${lost ? `<b>🐾 연속 ${lost}일 기록이 끊겼어요.</b><br>` : ''}
-      🍌 바나나 −${PENALTY_COIN * missed.length}<br>
+      💎 보석 −${PENALTY_COIN * missed.length}<br>
       📚 <b>복습 빚 ${S.debt}문제</b>가 전체 복습 퀴즈에 더해져요.</p>`, '다시 시작할게요');
   } else if (frozen.length) {
     modal(`<div style="font-size:72px">☂️</div><h2>우산이 막아줬어요!</h2>
@@ -356,20 +369,20 @@ function tryCompleteDay() {
   if (S.streak % 7 === 0 && S.shields < SHIELD_MAX) { S.shields++; shieldMsg = '<br>☂️ 7일 달성! 우산 1개 선물'; }
   save();
   setTimeout(() => {
-    beep('win'); burst('🍌');
+    beep('win'); burst('💎');
     modal(`${mascot('proud', 130)}<div class="big-num">${S.streak}</div><h2>일째 함께 걸었어요!</h2>
-      <p>오늘 할 일 끝! 🍌 +${bonus}${shieldMsg}<br><span class="muted">내일도 창이랑 놀아 주세요</span></p>`, '좋아요!');
+      <p>오늘 할 일 끝! 💎 +${bonus}${shieldMsg}<br><span class="muted">내일도 ${esc(nm("랑"))} 놀아 주세요</span></p>`, '좋아요!');
   }, 350);
   return true;
 }
 
 /* ========== 화면 공통 ========== */
 let tab = 'home';
-const TABS = [['home', '🏠', '홈'], ['add', '✏️', '입력'], ['quiz', '🎯', '퀴즈'], ['words', '📒', '단어장'], ['more', '⚙️', '더보기']];
+const TABS = [['home', '🏠', '홈'], ['add', '✏️', '입력'], ['quiz', '🎯', '퀴즈'], ['words', '📒', '단어장'], ['cat', '🐱', '고양이'], ['more', '⚙️', '더보기']];
 function renderTop() {
   $('#top').innerHTML = `
     <div class="stat s-streak" title="연속 출석"><span class="ic">🐾</span>${S.streak}</div>
-    <div class="stat s-coin" title="바나나"><span class="ic">🍌</span>${S.coins}</div>
+    <div class="stat s-coin" title="보석"><span class="ic">💎</span>${S.coins}</div>
     <div class="stat s-shield" title="우산(결석 1일 방어)"><span class="ic">☂️</span>${S.shields}</div>
     <div class="stat s-debt" title="복습 빚" style="${S.debt ? '' : 'opacity:.35'}"><span class="ic">📚</span>${S.debt}</div>`;
 }
@@ -377,7 +390,7 @@ function renderNav() {
   $('#nav').innerHTML = TABS.map(([k, i, n]) => `<button class="${tab === k ? 'on' : ''}" onclick="go('${k}')"><span class="ni">${i}</span>${n}</button>`).join('');
 }
 function go(k) { tab = k; render(); window.scrollTo(0, 0); }
-function render() { renderTop(); renderNav(); ({ home: renderHome, add: renderAdd, quiz: renderQuizHome, words: renderWords, more: renderMore })[tab](); }
+function render() { renderTop(); renderNav(); ({ home: renderHome, add: renderAdd, quiz: renderQuizHome, words: renderWords, cat: renderCat, more: renderMore })[tab](); }
 function toast(msg) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 1900); }
 function modal(html, btn = '확인', onClose) {
   const m = document.createElement('div'); m.className = 'modal';
@@ -434,7 +447,7 @@ function renderHome() {
     proud: `오늘 할 일 끝! 최고예요 👑<br>내일도 만나요. ຂອບໃຈ!`,
     sad: `빚진 복습이 <b>${S.debt}문제</b> 있어요…<br>전체 복습 퀴즈로 갚아 주세요 🥺`,
     worried: `벌써 저녁이에요!<br>자정 전에 오늘 할 일을 끝내야 기록이 이어져요.`,
-    happy: S.words.length ? `ສະບາຍດີ! 오늘 배운 표현을 <b>${S.goal}개</b> 넣어 주면<br>제가 퀴즈로 돌려 드릴게요.` : `ສະບາຍດີ! 저는 코끼리 <b>창이</b>예요.<br>오늘 배운 라오스어를 저한테 가르쳐 주세요!`
+    happy: S.words.length ? `ສະບາຍດີ! 오늘 배운 표현을 <b>${S.goal}개</b> 넣어 주면<br>제가 퀴즈로 돌려 드릴게요.` : `ສະບາຍດີ! 저는 고양이 <b>${esc(nm("예요"))}</b>.<br>오늘 배운 라오스어를 저한테 가르쳐 주세요!`
   }[mood];
   const due = S.words.filter(w => w.due <= t).length;
   // 최근 14일 달력 (월요일 시작 2주)
@@ -459,7 +472,7 @@ function renderHome() {
       <div class="task ${h.rquiz ? 'ok' : ''}"><div class="chk">${h.rquiz ? '✓' : '📚'}</div>
         <div class="t">${S.debt ? '전체 복습으로 빚 갚기' : '보너스: 전체 복습 퀴즈'} <span class="muted">${10 + S.debt}문제${due ? ` · 복습할 단어 ${due}개` : ''}</span></div></div>
       <div class="task ${h.wrote ? 'ok' : ''}"><div class="chk">${h.wrote ? '✓' : '📝'}</div>
-        <div class="t">보너스: 짧은 글쓰기 <span class="pill">🍌+5</span></div></div>
+        <div class="t">보너스: 짧은 글쓰기 <span class="pill">💎+5</span></div></div>
       <div class="row" style="margin-top:12px">
         <button class="btn ${h.added >= S.goal ? 'ghost' : ''}" onclick="go('add')">입력하기</button>
         <button class="btn blue" onclick="go('quiz')" ${S.words.length < 2 ? 'disabled' : ''}>퀴즈 고르기</button>
@@ -474,9 +487,9 @@ function renderHome() {
     <div class="card">
       <h3>규칙</h3>
       <div class="muted" style="line-height:1.7">
-        ✅ 하루 완료 = 새 표현 ${S.goal}개 + 퀴즈 통과 → 🍌 10 + 연속일수 보너스<br>
-        ☂️ 7일 연속마다 우산 1개 (최대 ${SHIELD_MAX}개) · 상점에서 🍌${SHIELD_PRICE}에 구매<br>
-        ❌ 빠지면: 연속 기록 0 · 🍌 −${PENALTY_COIN} · 복습 빚 +${PENALTY_DEBT}문제<br>
+        ✅ 하루 완료 = 새 표현 ${S.goal}개 + 퀴즈 통과 → 💎 10 + 연속일수 보너스<br>
+        ☂️ 7일 연속마다 우산 1개 (최대 ${SHIELD_MAX}개) · 상점에서 💎${SHIELD_PRICE}에 구매<br>
+        ❌ 빠지면: 연속 기록 0 · 💎 −${PENALTY_COIN} · 복습 빚 +${PENALTY_DEBT}문제<br>
         ⏰ 하루 기준은 이 기기 시간 자정이에요
       </div>
     </div>`;
@@ -511,7 +524,7 @@ function renderAdd() {
       <input id="fNote" autocomplete="off" placeholder="예) ຂ້ອຍຢາກໄປຕະຫຼາດ = 나는 시장에 가고 싶어요">
       <div class="muted" style="margin-top:4px;font-size:13px">예문을 넣으면 '순서 맞추기' 문제로도 나와요. 한 줄에 한 문장, = 뒤에 뜻.</div>
       <div style="height:14px"></div>
-      <button class="btn" onclick="addOne()">창이에게 가르치기</button>
+      <button class="btn" onclick="addOne()">${esc(catName())}에게 가르치기</button>
     `}
     </div>
     <div class="card">
@@ -537,7 +550,7 @@ function addOne() {
   const r = pushWord(lo, $('#fKo').value, addKind, $('#fNote').value);
   if (r === 'empty') return toast('라오스어와 뜻을 모두 써 주세요');
   if (r === 'dup') return toast('이미 가르쳐 준 표현이에요');
-  save(); beep('ok'); toast('🍌 +1 · 창이가 배웠어요!');
+  save(); beep('ok'); toast(`💎 +1 · ${nm('가')} 배웠어요!`);
   const added = S.words[S.words.length - 1];
   tryCompleteDay();
   renderTop(); renderAdd(); $('#fLo') && $('#fLo').focus();
@@ -661,7 +674,7 @@ let aiBusy = false;
 async function aiReview(words, quiet) {
   if (!aiKey() || !words.length) return;
   if (aiBusy) return; aiBusy = true;
-  const chip = document.createElement('div'); chip.className = 'toast'; chip.innerHTML = '<span class="spin">🐘</span> 창이가 철자 보는 중…'; chip.style.bottom = '140px';
+  const chip = document.createElement('div'); chip.className = 'toast'; chip.innerHTML = `<span class="spin">🐱</span> ${esc(nm('가'))} 철자 보는 중…`; chip.style.bottom = '140px';
   document.body.appendChild(chip);
   const found = [];
   try {
@@ -693,7 +706,7 @@ function showAiFixes(list) {
       <div class="row" style="margin-top:8px">${a.sug ? `<button class="btn sm" data-act="fix">바꾸기</button>` : ''}<button class="btn sm ghost" data-act="keep">${a.sug ? '내 철자 그대로' : '확인했어요'}</button>${!a.meaning ? `<button class="btn sm ghost" data-act="edit">직접 고치기</button>` : ''}</div>
     </div>`;
   };
-  m.innerHTML = `<div class="box" style="max-height:85vh;overflow:auto">${mascot('worried', 70)}<h2>창이가 철자를 봤어요</h2>
+  m.innerHTML = `<div class="box" style="max-height:85vh;overflow:auto">${mascot('worried', 70)}<h2>${esc(nm("가"))} 철자를 봤어요</h2>
     <div class="muted">AI도 틀릴 수 있어요. 확실할 때만 바꾸세요.</div>${list.map(row).join('')}
     <button class="btn" id="aiDone" style="margin-top:8px">닫기</button></div>`;
   document.body.appendChild(m);
@@ -1120,8 +1133,8 @@ function endQuiz(win) {
   const paid = isAll && !wasDone ? S.debt : 0; if (paid) S.debt = 0;
   save(); beep('win'); burst('⭐');
   modal(`${mascot('proud', 110)}<h2>${isAll ? '전체 복습 완료!' : '오늘 단어 퀴즈 완료!'}</h2>
-    <div class="statgrid"><div><b>${acc}%</b><span>정답률</span></div><div><b>❤️ ${Q.hearts}</b><span>남은 하트</span></div><div><b>🍌 ${reward}</b><span>보상</span></div></div>
-    <p>${paid ? `📚 복습 빚 ${paid}문제를 다 갚았어요!<br>` : ''}${wasDone ? '오늘 이미 받은 퀴즈라 보상은 없어요 (연습).' : ''}${!isAll && !h.rquiz ? '<br>전체 복습 퀴즈도 풀면 바나나를 더 받아요.' : ''}</p>`, '계속', () => { tryCompleteDay(); render(); });
+    <div class="statgrid"><div><b>${acc}%</b><span>정답률</span></div><div><b>❤️ ${Q.hearts}</b><span>남은 하트</span></div><div><b>💎 ${reward}</b><span>보상</span></div></div>
+    <p>${paid ? `📚 복습 빚 ${paid}문제를 다 갚았어요!<br>` : ''}${wasDone ? '오늘 이미 받은 퀴즈라 보상은 없어요 (연습).' : ''}${!isAll && !h.rquiz ? '<br>전체 복습 퀴즈도 풀면 보석을 더 받아요.' : ''}</p>`, '계속', () => { tryCompleteDay(); render(); });
   Q = null;
 }
 
@@ -1145,7 +1158,7 @@ function openWriting() {
     const j = { id: uid(), date: today(), words: words.map(w => w.lo), text, ko: m.querySelector('#wrK').value.trim() };
     S.journal.push(j);
     const h = H(); let msg = '저장했어요';
-    if (!h.wrote) { h.wrote = true; S.coins += 5; msg = '🍌 +5 · 저장했어요'; }
+    if (!h.wrote) { h.wrote = true; S.coins += 5; msg = '💎 +5 · 저장했어요'; }
     save(); m.remove(); beep('ok'); toast(used >= 2 ? msg + ` (표현 ${used}개 사용 👍)` : msg); render();
     if (aiKey()) setTimeout(() => correctWriting(j.id), 400);
     else setTimeout(() => {
@@ -1222,7 +1235,7 @@ async function correctWriting(id) {
   if (!j) return;
   if (!aiKey()) return toast('더보기 탭에서 AI 키를 먼저 넣어 주세요');
   const wait = document.createElement('div'); wait.className = 'modal';
-  wait.innerHTML = `<div class="box">${mascot('happy', 90)}<h2><span class="spin">✏️</span> 창이가 첨삭하는 중…</h2><p class="muted">10~30초쯤 걸려요</p></div>`;
+  wait.innerHTML = `<div class="box">${mascot('happy', 90)}<h2><span class="spin">✏️</span> ${esc(nm("가"))} 첨삭하는 중…</h2><p class="muted">10~30초쯤 걸려요</p></div>`;
   document.body.appendChild(wait);
   const vocab = S.words.slice(-60).map(w => `${w.lo} = ${w.ko}`).join('\n');
   const prompt = `You are a warm but precise Lao (ພາສາລາວ) writing tutor for a Korean intermediate learner who lives in Laos.
@@ -1263,7 +1276,7 @@ function showCorrection(id) {
   const f = j.fb, fixes = f.fixes || [], have = new Set(S.words.map(w => norm2(w.lo)));
   const m = document.createElement('div'); m.className = 'modal';
   m.innerHTML = `<div class="box" style="text-align:left">
-    <h2 style="text-align:center">✏️ 창이의 첨삭</h2>
+    <h2 style="text-align:center">✏️ ${esc(catName())}의 첨삭</h2>
     ${fixes.length ? '' : `<div style="text-align:center">${mascot('proud', 80)}<p><b>고칠 곳이 없어요! 완벽해요 🎉</b></p></div>`}
     <div class="fbk"><div class="lbl">내가 쓴 글</div><div class="lo txt">${markFixes(j.text, fixes.map(x => x.wrong), 'bad')}</div>
       <div class="muted">실제 뜻: ${esc(f.meaning_ko)}${j.ko ? `<br>하려던 말: ${esc(j.ko)}` : ''}</div></div>
@@ -1286,6 +1299,125 @@ function showCorrection(id) {
   });
 }
 
+/* ========== 고양이 방 (싸이월드 미니룸 느낌) ========== */
+// 방 배경
+const SHOP_BG = [
+  { id: 'basic', name: '포근한 크림 방', price: 0 },
+  { id: 'pink', name: '분홍 하트 방', price: 80 },
+  { id: 'sky', name: '하늘 구름 방', price: 80 },
+  { id: 'night', name: '별 밤 방', price: 120 },
+  { id: 'garden', name: '꽃 정원 방', price: 150 },
+  { id: 'lao', name: '라오스 전통 집', price: 200 },
+];
+// 소품: 자리(slot)마다 하나씩 놓임. 자리 위치는 ROOM_SLOTS
+const SHOP_PROP = [
+  { id: 'window', name: '창문', price: 60, slot: 'wallL' },
+  { id: 'lantern', name: '종이 등불', price: 70, slot: 'wallL' },
+  { id: 'frame', name: '그림 액자', price: 50, slot: 'wallR' },
+  { id: 'clock', name: '벽시계', price: 70, slot: 'wallR' },
+  { id: 'plant', name: '화분', price: 40, slot: 'floorL' },
+  { id: 'tower', name: '캣타워', price: 180, slot: 'floorL' },
+  { id: 'sofa', name: '소파', price: 150, slot: 'floorR', soon: true },
+  { id: 'bed', name: '고양이 침대', price: 120, slot: 'floorR', soon: true },
+  { id: 'rug', name: '동그란 러그', price: 40, slot: 'rug', soon: true },
+  { id: 'yarn', name: '털실 뭉치', price: 20, slot: 'toy', soon: true },
+  { id: 'fish', name: '생선 인형', price: 30, slot: 'toy', soon: true },
+  { id: 'elephant', name: '코끼리 인형', price: 50, slot: 'toy', soon: true },
+  { id: 'khao', name: '띱카오(찹쌀밥 바구니)', price: 40, slot: 'toy', soon: true },
+];
+// 옷: 한 번에 하나
+const SHOP_WEAR = [
+  { id: 'ribbon', name: '분홍 리본', price: 40 }, { id: 'bell', name: '방울 목걸이', price: 40 },
+  { id: 'party', name: '고깔모자', price: 50 }, { id: 'beanie', name: '털모자', price: 60 },
+  { id: 'glasses', name: '동그란 안경', price: 60 }, { id: 'scarf', name: '빨간 목도리', price: 70 },
+  { id: 'straw', name: '밀짚모자', price: 80 }, { id: 'sun', name: '선글라스', price: 90 },
+  { id: 'lao', name: '라오스 전통 스카프', price: 120 }, { id: 'crown', name: '황금 왕관', price: 200 },
+];
+// 방 안 자리: left/top 은 방 그림 기준 %, w 는 너비 %
+// 벽 소품은 위(top) 기준, 바닥 소품은 아래(bottom) 기준으로 놓음
+const ROOM_SLOTS = {
+  wallL: { left: 12, top: 18, w: 22, z: 1 }, wallR: { left: 66, top: 16, w: 17, z: 1 },
+  rug: { left: 30, bottom: 12, w: 42, z: 2 },
+  floorL: { left: 8, bottom: 34, w: 22, z: 3 }, floorR: { left: 66, bottom: 30, w: 30, z: 3 },
+  toy: { left: 24, bottom: 14, w: 13, z: 6 },
+};
+let catShop = 'bg', catSay = '';
+const catOwned = id => (S.cat.owned || []).includes(id);
+function ensureCat() {
+  const d = defState().cat;
+  S.cat = Object.assign(d, S.cat || {});
+  if (typeof S.cat.wear !== 'string') S.cat.wear = '';
+  if (!S.cat.owned.includes('basic')) S.cat.owned.push('basic');
+}
+function renderCat() {
+  ensureCat(); renderTop();
+  const c = S.cat, bgId = c.bg || 'basic';
+  const props = Object.entries(c.props || {}).filter(([, id]) => id).map(([slot, id]) => {
+    const p = ROOM_SLOTS[slot]; if (!p) return '';
+    return `<img class="rprop" src="img/p_${id}.png" style="left:${p.left}%;${p.top != null ? `top:${p.top}%` : `bottom:${p.bottom}%`};width:${p.w}%;z-index:${p.z}" alt="">`;
+  }).join('');
+  const list = catShop === 'bg' ? SHOP_BG : catShop === 'prop' ? SHOP_PROP : SHOP_WEAR;
+  $('#main').innerHTML = `
+    <div class="room" id="room">
+      <img class="rbg" src="img/room_${bgId}.jpg" alt="">
+      ${props}
+      <div class="rcat" onclick="petCat()"><img src="${catImg('happy')}" alt="고양이" draggable="false"></div>
+      ${catSay ? `<div class="rsay">${catSay}</div>` : ''}
+      <div class="rname">${esc(catName())} <button onclick="renameCat()" title="이름 바꾸기">✏️</button></div>
+      <div class="rgem">💎 ${S.coins}</div>
+    </div>
+    <div class="muted" style="text-align:center;margin:6px 0 12px;font-size:13px">${esc(nm('를'))} 눌러 보세요 · 공부해서 모은 💎 보석으로 방을 꾸며요</div>
+    <div class="card">
+      <h3>🛍️ 상점</h3>
+      <div class="seg" style="margin:8px 0 12px">${[['bg', '🏠 배경'], ['prop', '🪴 소품'], ['wear', '🎀 옷']].map(([k, n]) => `<button class="${catShop === k ? 'on' : ''}" onclick="catShop='${k}';renderCat()">${n}</button>`).join('')}</div>
+      <div class="shopgrid">${list.map(it => shopCard(it)).join('')}</div>
+    </div>`;
+}
+function shopCard(it) {
+  const c = S.cat, own = catOwned(it.id) || it.price === 0;
+  const using = catShop === 'bg' ? c.bg === it.id : catShop === 'prop' ? c.props[it.slot] === it.id : c.wear === it.id;
+  const img = catShop === 'bg' ? `img/room_${it.id}.jpg` : catShop === 'prop' ? `img/p_${it.id}.png` : `img/w_${it.id}.png`;
+  if (it.soon) return `<div class="shopit soon"><div class="sim">🎁</div><div class="snm">${esc(it.name)}</div><button class="btn sm ghost" disabled>곧 나와요</button></div>`;
+  const btn = !own
+    ? `<button class="btn sm ${S.coins >= it.price ? 'blue' : ''}" ${S.coins >= it.price ? '' : 'disabled'} onclick="buyCat('${catShop}','${it.id}')">💎 ${it.price}</button>`
+    : using
+      ? (catShop === 'bg' ? `<button class="btn sm ghost" disabled>쓰는 중</button>` : `<button class="btn sm ghost" onclick="useCat('${catShop}','${it.id}')">${catShop === 'wear' ? '벗기' : '치우기'}</button>`)
+      : `<button class="btn sm" onclick="useCat('${catShop}','${it.id}')">${catShop === 'wear' ? '입기' : catShop === 'bg' ? '바꾸기' : '놓기'}</button>`;
+  return `<div class="shopit ${using ? 'on' : ''}"><div class="sim ${catShop === 'bg' ? 'bgim' : ''}"><img src="${img}" alt="" loading="lazy"></div><div class="snm">${esc(it.name)}</div>${btn}</div>`;
+}
+function buyCat(kind, id) {
+  ensureCat();
+  const list = kind === 'bg' ? SHOP_BG : kind === 'prop' ? SHOP_PROP : SHOP_WEAR, it = list.find(x => x.id === id);
+  if (!it || catOwned(id) || S.coins < it.price) return;
+  if (!confirm(`💎 ${it.price}개로 '${it.name}'${/[가-힣]$/.test(it.name) && (it.name.charCodeAt(it.name.length - 1) - 0xAC00) % 28 ? '을' : '를'} 살까요?`)) return;
+  S.coins -= it.price; S.cat.owned.push(id);
+  useCat(kind, id, true);
+  beep('win'); burst('💎'); toast(`✨ ${it.name} 샀어요!`);
+}
+function useCat(kind, id, justBought) {
+  ensureCat(); const c = S.cat;
+  if (kind === 'bg') c.bg = id;
+  else if (kind === 'prop') { const it = SHOP_PROP.find(x => x.id === id); c.props[it.slot] = (c.props[it.slot] === id && !justBought) ? '' : id; }
+  else c.wear = (c.wear === id && !justBought) ? '' : id;
+  save(); renderCat();
+}
+function petCat() {
+  const lines = ['ແມວ~ 야옹!', 'ມ່ວນຫຼາຍ! 정말 재밌어요!', 'ຮັກເຈົ້າ 사랑해요 💕', 'ສູ້ໆ 힘내요!'];
+  const w = S.words.length ? S.words[Math.floor(Math.random() * S.words.length)] : null;
+  catSay = w && Math.random() < .6 ? `<span class="lo">${esc(w.lo)}</span><br><small>${esc(w.ko)}</small>` : esc(lines[Math.floor(Math.random() * lines.length)]);
+  renderCat();
+  const r = $('.rcat'); r && (r.classList.remove('jump'), void r.offsetWidth, r.classList.add('jump'));
+  burst('💕');
+  clearTimeout(petCat.t); petCat.t = setTimeout(() => { catSay = ''; if (tab === 'cat' && $('.rsay')) $('.rsay').remove(); }, 3500);
+}
+function renameCat() {
+  const n = prompt('고양이 이름을 지어 주세요', catName());
+  if (n === null) return;
+  const v = n.trim().slice(0, 10);
+  if (!v) return toast('이름이 비었어요');
+  ensureCat(); S.cat.name = v; save(); render(); toast(`이제 ${nm('예요')}!`);
+}
+
 /* ========== 더보기 ========== */
 function renderMore() {
   $('#main').innerHTML = `
@@ -1298,7 +1430,7 @@ function renderMore() {
     <div class="card">
       <h3>🛒 상점</h3>
       <div class="w"><div style="font-size:34px">☂️</div><div class="grow"><b>우산</b><div class="ko">하루 빠져도 연속 기록을 지켜 줘요 (최대 ${SHIELD_MAX}개, 지금 ${S.shields}개)</div></div>
-        <button class="btn yellow sm" onclick="buyShield()" ${S.shields >= SHIELD_MAX || S.coins < SHIELD_PRICE ? 'disabled' : ''}>🍌${SHIELD_PRICE}</button></div>
+        <button class="btn yellow sm" onclick="buyShield()" ${S.shields >= SHIELD_MAX || S.coins < SHIELD_PRICE ? 'disabled' : ''}>💎${SHIELD_PRICE}</button></div>
     </div>
     <div class="card">
       <h3>📝 글쓰기 기록 <span class="muted">${S.journal.length}개</span></h3>
@@ -1383,7 +1515,7 @@ function addSamples() {
   save(); toast(`예시 ${n}개를 넣었어요`); tryCompleteDay(); render();
 }
 function resetAll() {
-  if (!confirm('단어·기록·바나나가 모두 사라져요. 정말 초기화할까요?')) return;
+  if (!confirm('단어·기록·보석이 모두 사라져요. 정말 초기화할까요?')) return;
   if (!confirm('되돌릴 수 없어요. 마지막 확인!')) return;
   S = defState(); S.lastCheck = today(); save(); render();
 }
@@ -1535,7 +1667,7 @@ function renderSyncBox() { const b = $('#syncBox'); if (b) b.innerHTML = syncInn
 /* ========== 새 버전 자동 반영 ==========
    올릴 때 deploy.sh 가 APP_V 와 version.txt 를 같은 값으로 바꿈.
    폰이 옛 화면을 기억하고 있어도, 열 때·다시 볼 때 version.txt 를 확인해 다르면 새 주소(?v=)로 다시 불러옴 */
-const APP_V = '20261123-2344';
+const APP_V = '20261124-0011';
 function checkNewVersion() {
   if (Q || $('.modal') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;   // 풀거나 쓰는 중엔 안 건드림
   fetch('version.txt?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(s => {
