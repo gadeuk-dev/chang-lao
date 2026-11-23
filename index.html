@@ -1317,13 +1317,13 @@ const SHOP_PROP = [
   { id: 'clock', name: '벽시계', price: 70, slot: 'wallR' },
   { id: 'plant', name: '화분', price: 40, slot: 'floorL' },
   { id: 'tower', name: '캣타워', price: 180, slot: 'floorL' },
-  { id: 'sofa', name: '소파', price: 150, slot: 'floorR', soon: true },
-  { id: 'bed', name: '고양이 침대', price: 120, slot: 'floorR', soon: true },
-  { id: 'rug', name: '동그란 러그', price: 40, slot: 'rug', soon: true },
-  { id: 'yarn', name: '털실 뭉치', price: 20, slot: 'toy', soon: true },
-  { id: 'fish', name: '생선 인형', price: 30, slot: 'toy', soon: true },
-  { id: 'elephant', name: '코끼리 인형', price: 50, slot: 'toy', soon: true },
-  { id: 'khao', name: '띱카오(찹쌀밥 바구니)', price: 40, slot: 'toy', soon: true },
+  { id: 'sofa', name: '소파', price: 150, slot: 'floorR' },
+  { id: 'bed', name: '고양이 침대', price: 120, slot: 'floorR' },
+  { id: 'rug', name: '동그란 러그', price: 40, slot: 'rug' },
+  { id: 'yarn', name: '털실 뭉치', price: 20, slot: 'toy' },
+  { id: 'fish', name: '생선 인형', price: 30, slot: 'toy' },
+  { id: 'elephant', name: '코끼리 인형', price: 50, slot: 'toy' },
+  { id: 'khao', name: '띱카오(찹쌀밥 바구니)', price: 40, slot: 'toy' },
 ];
 // 옷: 한 번에 하나
 const SHOP_WEAR = [
@@ -1667,7 +1667,7 @@ function renderSyncBox() { const b = $('#syncBox'); if (b) b.innerHTML = syncInn
 /* ========== 새 버전 자동 반영 ==========
    올릴 때 deploy.sh 가 APP_V 와 version.txt 를 같은 값으로 바꿈.
    폰이 옛 화면을 기억하고 있어도, 열 때·다시 볼 때 version.txt 를 확인해 다르면 새 주소(?v=)로 다시 불러옴 */
-const APP_V = '20261124-0011';
+const APP_V = '20261124-0504';
 function checkNewVersion() {
   if (Q || $('.modal') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;   // 풀거나 쓰는 중엔 안 건드림
   fetch('version.txt?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(s => {
