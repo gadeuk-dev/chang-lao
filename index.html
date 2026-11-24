@@ -378,7 +378,7 @@ function tryCompleteDay() {
 
 /* ========== 화면 공통 ========== */
 let tab = 'home';
-const TABS = [['home', '🏠', '홈'], ['add', '✏️', '입력'], ['quiz', '🎯', '퀴즈'], ['words', '📒', '단어장'], ['cat', '🐱', '고양이'], ['more', '⚙️', '더보기']];
+const TABS = [['home', '🏠', '홈'], ['add', '✏️', '입력'], ['quiz', '🎯', '퀴즈'], ['words', '📒', '단어장'], ['cat', '🐱', '마이펫'], ['more', '⚙️', '더보기']];
 function renderTop() {
   $('#top').innerHTML = `
     <div class="stat s-streak" title="연속 출석"><span class="ic">🐾</span>${S.streak}</div>
@@ -1671,7 +1671,7 @@ function renderSyncBox() { const b = $('#syncBox'); if (b) b.innerHTML = syncInn
 /* ========== 새 버전 자동 반영 ==========
    올릴 때 deploy.sh 가 APP_V 와 version.txt 를 같은 값으로 바꿈.
    폰이 옛 화면을 기억하고 있어도, 열 때·다시 볼 때 version.txt 를 확인해 다르면 새 주소(?v=)로 다시 불러옴 */
-const APP_V = '20261124-0740';
+const APP_V = '20261124-0920';
 function checkNewVersion() {
   if (Q || $('.modal') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;   // 풀거나 쓰는 중엔 안 건드림
   fetch('version.txt?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(s => {
