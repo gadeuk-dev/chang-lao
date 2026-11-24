@@ -468,9 +468,9 @@ function renderHome() {
       <div class="task ${h.added >= S.goal ? 'ok' : ''}"><div class="chk">${h.added >= S.goal ? '✓' : '✏️'}</div>
         <div class="t">새 표현 ${S.goal}개 가르치기 <span class="muted">${h.added}/${S.goal}</span> <span class="pill">💎 1개당 +1</span><div class="bar"><i style="width:${addPct}%"></i></div></div></div>
       <div class="task ${h.quiz ? 'ok' : ''}"><div class="chk">${h.quiz ? '✓' : '🎯'}</div>
-        <div class="t">오늘 단어 퀴즈 풀기 <span class="muted">10문제</span> <span class="pill">💎+5~15</span></div></div>
+        <div class="t">오늘 단어 퀴즈 풀기 <span class="muted">10문제</span> <span class="pill">💎+5</span></div></div>
       <div class="task ${h.rquiz ? 'ok' : ''}"><div class="chk">${h.rquiz ? '✓' : '📚'}</div>
-        <div class="t">${S.debt ? '전체 복습으로 빚 갚기' : '보너스: 전체 복습 퀴즈'} <span class="muted">${10 + S.debt}문제${due ? ` · 복습할 단어 ${due}개` : ''}</span> <span class="pill">💎+5~${15 + S.debt}</span></div></div>
+        <div class="t">${S.debt ? '전체 복습으로 빚 갚기' : '보너스: 전체 복습 퀴즈'} <span class="muted">${10 + S.debt}문제${due ? ` · 복습할 단어 ${due}개` : ''}</span> <span class="pill">💎+5</span></div></div>
       <div class="task ${h.wrote ? 'ok' : ''}"><div class="chk">${h.wrote ? '✓' : '📝'}</div>
         <div class="t">보너스: 짧은 글쓰기 <span class="pill">💎+10</span></div></div>
       <div class="muted" style="margin-top:8px">🎁 새 표현 + 오늘 단어 퀴즈를 끝내면 하루 완료 보너스 <b style="color:#1CB0F6">${h.done ? '✓ 받았어요' : `💎+${10 + Math.min(S.streak + 1, 20)}`}</b></div>
@@ -488,7 +488,7 @@ function renderHome() {
     <div class="card">
       <h3>규칙</h3>
       <div class="muted" style="line-height:1.7">
-        ✅ 하루 완료 = 새 표현 ${S.goal}개 + 퀴즈 통과 → 💎 10 + 연속일수 보너스(최대 20)<br>💎 표현 1개 +1 · 퀴즈 5 + 맞힌 개수 · 짧은 글쓰기 +10<br>
+        ✅ 하루 완료 = 새 표현 ${S.goal}개 + 퀴즈 통과 → 💎 10 + 연속일수 보너스(최대 20)<br>💎 표현 1개 +1 · 퀴즈 +5 · 짧은 글쓰기 +10<br>
         ☂️ 7일 연속마다 우산 1개 (최대 ${SHIELD_MAX}개) · 상점에서 💎${SHIELD_PRICE}에 구매<br>
         ❌ 빠지면: 연속 기록 0 · 💎 −${PENALTY_COIN} · 복습 빚 +${PENALTY_DEBT}문제<br>
         ⏰ 하루 기준은 이 기기 시간 자정이에요
@@ -1130,7 +1130,7 @@ function endQuiz(win) {
   const isAll = Q.mode === 'all', flag = isAll ? 'rquiz' : 'quiz';
   const wasDone = !!h[flag];
   let reward = 0;
-  if (!wasDone) { h[flag] = true; reward = 5 + Q.right; S.coins += reward; }
+  if (!wasDone) { h[flag] = true; reward = 5; S.coins += reward; }
   const paid = isAll && !wasDone ? S.debt : 0; if (paid) S.debt = 0;
   save(); beep('win'); burst('⭐');
   modal(`${mascot('proud', 110)}<h2>${isAll ? '전체 복습 완료!' : '오늘 단어 퀴즈 완료!'}</h2>
@@ -1672,7 +1672,7 @@ function renderSyncBox() { const b = $('#syncBox'); if (b) b.innerHTML = syncInn
 /* ========== 새 버전 자동 반영 ==========
    올릴 때 deploy.sh 가 APP_V 와 version.txt 를 같은 값으로 바꿈.
    폰이 옛 화면을 기억하고 있어도, 열 때·다시 볼 때 version.txt 를 확인해 다르면 새 주소(?v=)로 다시 불러옴 */
-const APP_V = '20261124-1052';
+const APP_V = '20261124-1056';
 function checkNewVersion() {
   if (Q || $('.modal') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;   // 풀거나 쓰는 중엔 안 건드림
   fetch('version.txt?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(s => {
