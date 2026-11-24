@@ -488,7 +488,9 @@ function renderHome() {
     <div class="card">
       <h3>규칙</h3>
       <div class="muted" style="line-height:1.7">
-        ✅ 하루 완료 = 새 표현 ${S.goal}개 + 퀴즈 통과 → 💎 10 + 연속일수 보너스(최대 20)<br>💎 표현 1개 +1 · 퀴즈 +5 · 짧은 글쓰기 +10<br>
+        ✅ 하루 완료 = 새 표현 ${S.goal}개 + 오늘 단어 퀴즈 통과 → 💎 10 + 연속일수 보너스(최대 20)<br>
+        💎 새 표현 1개 +1 · 오늘 단어 퀴즈 +5 · 전체 복습 퀴즈 +5 · 짧은 글쓰기 +10 (하루 한 번씩)<br>
+        ❤️ 퀴즈마다 하트 3개 · 틀리면 1개씩 줄고, 다 쓰면 보상 없이 다시 풀기<br>
         ☂️ 7일 연속마다 우산 1개 (최대 ${SHIELD_MAX}개) · 상점에서 💎${SHIELD_PRICE}에 구매<br>
         ❌ 빠지면: 연속 기록 0 · 💎 −${PENALTY_COIN} · 복습 빚 +${PENALTY_DEBT}문제<br>
         ⏰ 하루 기준은 이 기기 시간 자정이에요
@@ -1672,7 +1674,7 @@ function renderSyncBox() { const b = $('#syncBox'); if (b) b.innerHTML = syncInn
 /* ========== 새 버전 자동 반영 ==========
    올릴 때 deploy.sh 가 APP_V 와 version.txt 를 같은 값으로 바꿈.
    폰이 옛 화면을 기억하고 있어도, 열 때·다시 볼 때 version.txt 를 확인해 다르면 새 주소(?v=)로 다시 불러옴 */
-const APP_V = '20261124-1056';
+const APP_V = '20261124-1057';
 function checkNewVersion() {
   if (Q || $('.modal') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;   // 풀거나 쓰는 중엔 안 건드림
   fetch('version.txt?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(s => {
