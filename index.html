@@ -784,11 +784,14 @@ function editWord(id) {
     if (S.words.some(x => x.id !== id && x.lo === lo)) return toast('같은 라오스어가 이미 있어요');
     const errs = checkLao(lo).filter(x => x.level === 'err');
     if (errs.length && !confirm(`철자에 문제가 있어 보여요:\n\n${errs.map(x => '· ' + x.msg).join('\n')}\n\n그래도 저장할까요?`)) return;
-    const changed = lo !== w.lo || ko !== w.ko;
-    w.lo = lo; w.ko = ko; w.kind = kind; w.note = m.querySelector('#eNote').value.trim();
-    if (changed) delete w.ai;
+    // 창을 연 사이 연동으로 단어장이 새로 바뀌었을 수 있으니, 저장하는 순간의 단어를 다시 찾아 고침
+    const cur = S.words.find(x => x.id === id);
+    if (!cur) { m.remove(); return toast('이 단어가 다른 기기에서 지워졌어요'); }
+    const changed = lo !== cur.lo || ko !== cur.ko;
+    cur.lo = lo; cur.ko = ko; cur.kind = kind; cur.note = m.querySelector('#eNote').value.trim();
+    if (changed) delete cur.ai;
     save(); m.remove(); toast('고쳤어요'); render();
-    if (changed) aiReview([w], true);
+    if (changed) aiReview([cur], true);
   };
   liveCheck('eLo', 'eLoChk');
   setTimeout(() => m.querySelector('#eLo').focus(), 50);
@@ -1205,6 +1208,8 @@ ${j.text}`;
 // 글쓰기 기록 고치기·지우기
 function editJournal(ix) {
   const j = S.journal[ix]; if (!j) return;
+  const key = jid(j);
+  const live = () => S.journal.find(x => jid(x) === key);
   const m = document.createElement('div'); m.className = 'modal';
   m.innerHTML = `<div class="box" style="text-align:left">
     <h2 style="text-align:center">✏️ 글 고치기</h2>
@@ -1221,16 +1226,18 @@ function editJournal(ix) {
   m.querySelector('#ejS').onclick = () => {
     const text = t.value.trim();
     if (text.length < 2) return toast('글이 비어 있어요');
-    const changed = text !== j.text;
-    jid(j); j.text = text; j.ko = m.querySelector('#ejK').value.trim();
-    if (changed) delete j.fb;
-    j.edited = Date.now();
+    const cur = live();
+    if (!cur) { m.remove(); return toast('이 글이 다른 기기에서 지워졌어요'); }
+    const changed = text !== cur.text;
+    cur.text = text; cur.ko = m.querySelector('#ejK').value.trim();
+    if (changed) delete cur.fb;
+    cur.edited = Date.now();
     save(); m.remove(); toast('고쳤어요'); render();
-    if (changed && aiKey()) setTimeout(() => { if (confirm('고친 글로 다시 첨삭받을까요?')) correctWriting(j.id); }, 300);
+    if (changed && aiKey()) setTimeout(() => { if (confirm('고친 글로 다시 첨삭받을까요?')) correctWriting(key); }, 300);
   };
   m.querySelector('#ejD').onclick = () => {
     if (!confirm('이 글을 지울까요? 되돌릴 수 없어요.')) return;
-    S.journal.splice(ix, 1); save(); m.remove(); toast('지웠어요'); render();
+    S.journal = S.journal.filter(x => jid(x) !== key); save(); m.remove(); toast('지웠어요'); render();
   };
 }
 async function correctWriting(id) {
@@ -1543,7 +1550,7 @@ function mergeState(L, R, B) {
   const words = [];
   for (const id of new Set([...lW.keys(), ...rW.keys()])) {
     const l = lW.get(id), r = rW.get(id), b = bW.get(id);
-    if (l && r) words.push(b && J(l) === J(b) ? r : l);
+    if (l && r) words.push(J(l) !== J(r) && b && J(l) === J(b) ? r : l);
     else if (l) { if (!(b && J(l) === J(b))) words.push(l); }      // 저쪽에서 지운 건 지움(이쪽에서 고쳤으면 살림)
     else if (r) { if (!(b && J(r) === J(b))) words.push(r); }
   }
@@ -1566,7 +1573,7 @@ function mergeState(L, R, B) {
   const journal = [];
   for (const id of new Set([...lJ.keys(), ...rJ.keys()])) {
     const l = lJ.get(id), r = rJ.get(id), b = bJ.get(id);
-    if (l && r) journal.push(b && J(l) === J(b) ? r : l);
+    if (l && r) journal.push(J(l) !== J(r) && b && J(l) === J(b) ? r : l);
     else if (l) { if (!(b && J(l) === J(b))) journal.push(l); }
     else if (r) { if (!(b && J(r) === J(b))) journal.push(r); }
   }
@@ -1607,9 +1614,11 @@ async function cloudSync() {
     const before = J(S);
     const M = mergeState(S, R, getBase());
     const changed = J(M) !== before;
-    S = M; localStorage.setItem(KEY, J(S));
-    if (!R || J(M) !== J(R)) await fs.setDoc(ref, { data: J(M), at: fs.serverTimestamp(), dev: DEV, words: M.words.length });
-    setBase(M); lastSync = new Date(); syncErr = '';
+    const Mj = J(M);
+    S = M; localStorage.setItem(KEY, Mj);
+    if (!R || Mj !== J(R)) await fs.setDoc(ref, { data: Mj, at: fs.serverTimestamp(), dev: DEV, words: M.words.length });
+    try { localStorage.setItem(BASE_KEY, Mj); } catch (e) { }
+    lastSync = new Date(); syncErr = '';
     uiAfterSync(changed);
   } catch (e) {
     syncErr = navigator.onLine ? '연동 오류: ' + (e.code || e.message || e) : '인터넷이 끊겨 있어요 (연결되면 다시 맞춰요)';
@@ -1674,7 +1683,7 @@ function renderSyncBox() { const b = $('#syncBox'); if (b) b.innerHTML = syncInn
 /* ========== 새 버전 자동 반영 ==========
    올릴 때 deploy.sh 가 APP_V 와 version.txt 를 같은 값으로 바꿈.
    폰이 옛 화면을 기억하고 있어도, 열 때·다시 볼 때 version.txt 를 확인해 다르면 새 주소(?v=)로 다시 불러옴 */
-const APP_V = '20261124-1057';
+const APP_V = '20261125-2044';
 function checkNewVersion() {
   if (Q || $('.modal') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;   // 풀거나 쓰는 중엔 안 건드림
   fetch('version.txt?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(s => {
