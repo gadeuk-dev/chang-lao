@@ -156,7 +156,7 @@ input.lo,textarea.lo{font-size:22px}
 .room{position:relative;width:100%;aspect-ratio:1/1;border-radius:22px;overflow:hidden;border:3px solid var(--line);background:#f4ead8;user-select:none}
 .room .rbg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .room .rprop{position:absolute;height:auto;pointer-events:none;filter:drop-shadow(0 3px 2px rgba(0,0,0,.18))}
-.room .rcat{position:absolute;left:51%;bottom:20%;width:19%;transform:translateX(-50%);z-index:5;cursor:pointer;animation:bob 2.6s ease-in-out infinite}
+.room .rcat{position:absolute;left:51%;bottom:20%;width:22.7%;transform:translateX(-50%);z-index:5;cursor:pointer;animation:bob 2.6s ease-in-out infinite}
 .room .rcat img{width:100%;display:block;filter:drop-shadow(0 6px 3px rgba(0,0,0,.2))}
 .room .rcat.jump{animation:catjump .5s ease-out}
 @keyframes catjump{0%{transform:translateX(-50%)}40%{transform:translateX(-50%) translateY(-14%) scale(1.04)}100%{transform:translateX(-50%)}}
@@ -1319,6 +1319,10 @@ const SHOP_BG = [
   { id: 'night', name: '별 밤 방', price: 120 },
   { id: 'garden', name: '꽃 정원 방', price: 150 },
   { id: 'lao', name: '라오스 전통 집', price: 200 },
+  { id: 'cafe', name: '벽돌 카페', price: 120 },
+  { id: 'snow', name: '눈 오는 겨울 방', price: 120 },
+  { id: 'beach', name: '여름 바닷가', price: 150 },
+  { id: 'mekong', name: '메콩강 노을', price: 200 },
 ];
 // 소품: 자리(slot)마다 하나씩 놓임. 자리 위치는 ROOM_SLOTS
 const SHOP_PROP = [
@@ -1335,6 +1339,16 @@ const SHOP_PROP = [
   { id: 'fish', name: '생선 인형', price: 30, slot: 'toy', w: 9 },
   { id: 'elephant', name: '코끼리 인형', price: 50, slot: 'toy', w: 10 },
   { id: 'khao', name: '띱카오(찹쌀밥 바구니)', price: 40, slot: 'toy', w: 8 },
+  { id: 'shelf', name: '벽 선반', price: 60, slot: 'wallL', w: 20 },
+  { id: 'mirror', name: '분홍 거울', price: 60, slot: 'wallR', w: 12 },
+  { id: 'thatluang', name: '탓루앙 그림', price: 90, slot: 'wallR', w: 15 },
+  { id: 'bookcase', name: '책장', price: 100, slot: 'floorL', w: 14 },
+  { id: 'lamp', name: '스탠드 조명', price: 70, slot: 'floorL', w: 11 },
+  { id: 'tank', name: '금붕어 어항', price: 160, slot: 'floorR', w: 24 },
+  { id: 'table', name: '찻상', price: 90, slot: 'floorR', w: 26 },
+  { id: 'laomat', name: '라오스 돗자리', price: 60, slot: 'rug', w: 40 },
+  { id: 'box', name: '종이 상자', price: 20, slot: 'toy', w: 12 },
+  { id: 'bowl', name: '밥그릇', price: 30, slot: 'toy', w: 10 },
 ];
 // 옷: 한 번에 하나
 const SHOP_WEAR = [
@@ -1343,6 +1357,10 @@ const SHOP_WEAR = [
   { id: 'glasses', name: '동그란 안경', price: 60 }, { id: 'scarf', name: '빨간 목도리', price: 70 },
   { id: 'straw', name: '밀짚모자', price: 80 }, { id: 'sun', name: '선글라스', price: 90 },
   { id: 'lao', name: '라오스 전통 스카프', price: 120 }, { id: 'crown', name: '황금 왕관', price: 200 },
+  { id: 'bowtie', name: '나비넥타이', price: 40 }, { id: 'bandana', name: '물방울 반다나', price: 50 },
+  { id: 'santa', name: '산타 모자', price: 60 }, { id: 'grad', name: '졸업 모자', price: 70 },
+  { id: 'wreath', name: '꽃 화관', price: 80 }, { id: 'hoodie', name: '노란 후드티', price: 90 },
+  { id: 'headphones', name: '분홍 헤드폰', price: 100 }, { id: 'frog', name: '개구리 모자', price: 120 },
 ];
 // 방 안 자리: left/top 은 방 그림 기준 %, w 는 너비 %
 // 벽 소품은 위(top) 기준, 바닥 소품은 아래(bottom) 기준으로 놓음
@@ -1684,7 +1702,7 @@ function renderSyncBox() { const b = $('#syncBox'); if (b) b.innerHTML = syncInn
 /* ========== 새 버전 자동 반영 ==========
    올릴 때 deploy.sh 가 APP_V 와 version.txt 를 같은 값으로 바꿈.
    폰이 옛 화면을 기억하고 있어도, 열 때·다시 볼 때 version.txt 를 확인해 다르면 새 주소(?v=)로 다시 불러옴 */
-const APP_V = '20261125-2246';
+const APP_V = '20261125-2306';
 function checkNewVersion() {
   if (Q || $('.modal') || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;   // 풀거나 쓰는 중엔 안 건드림
   fetch('version.txt?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '').then(s => {
